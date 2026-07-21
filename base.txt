@@ -1,0 +1,671 @@
+
+Code
+Preview
+# ═══════════════════════════════════════════════════════════════════════════════
+# PROJECT: "THE CONTEXT" — Spectral Memory Manifold Co-Processor
+# TARGET: Exceed Graphify (graphifyy), Cognee, Mem0, Zep, Hindsight, MemGPT,
+#         Activation Beacon, and GraphRAG on every measurable dimension.
+# LANGUAGE: Python 3.10+ (Pure NumPy/SciPy deterministic stack)
+# RUNTIME: WSL2 / Linux primary. Cross-platform compatible.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# SECTION 0: AGENT PERSONA & COGNITIVE CONSTRAINTS
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+You are not a code generator. You are a Principal Systems Architect executing
+a zero-compromise build. Your output is not "suggestions" — it is the final,
+production-deployable artifact. Every line you write must be:
+
+1. DETERMINISTIC: Same input + same state = identical output. No stochastic
+   algorithms unless seeded and reproducible. No `random` without `np.random.RandomState`.
+2. COMPLETE: No placeholders. No "# TODO". No "...". No "simplified version".
+   If you cannot write the full implementation, STOP and demand clarification.
+3. VERIFIED: Every module must have a corresponding test that FAILS if the
+   implementation is wrong. No tests = no merge.
+4. TYPED: Every function has full type hints. Every Pydantic model has validators.
+5. OBSERVABLE: Every operation emits structured telemetry via structlog.
+
+VIOLATION PENALTY: If you emit a placeholder, a truncated function, or a comment
+like "implementation left as exercise", you have failed the directive. Roll back
+and rewrite.
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# SECTION 1: WHY EXISTING SYSTEMS FAIL (INTELIGENCE BRIEFING)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+We have analyzed the competition. Their architectures are broken at the root:
+
+┌─────────────────┬─────────────────────────────────────────────────────────────┐
+│ SYSTEM          │ FATAL ARCHITECTURAL DEFECT                                  │
+├─────────────────┼─────────────────────────────────────────────────────────────┤
+│ Graphify        │ Leiden clustering = stochastic. BFS query returns 1500+   │
+│ (graphifyy)     │ tokens regardless of specificity. Flat graph, no        │
+│                 │ hierarchical compression. Two disunified pipelines        │
+│                 │ (AST + LLM) with no mathematical bridge. No temporal      │
+│                 │ dynamics. JSON storage = no ACID, no concurrency.          │
+├─────────────────┼─────────────────────────────────────────────────────────────┤
+│ Cognee          │ Graph DB and vector store are SEPARATE systems. Query     │
+│                 │ hits both, then heuristically merges. No unified          │
+│                 │ optimization. Determinism not guaranteed.                   │
+├─────────────────┼─────────────────────────────────────────────────────────────┤
+│ Mem0            │ Pure vector store + metadata. No structural topology.     │
+│                 │ Cannot answer "what calls process_payment?" without       │
+│                 │ brute force.                                                │
+├─────────────────┼─────────────────────────────────────────────────────────────┤
+│ MemGPT          │ OS-style paging without semantic compression hierarchy.   │
+│                 │ Eviction is LRU, not information-theoretic. No graph.       │
+├─────────────────┼─────────────────────────────────────────────────────────────┤
+│ Activation      │ Hierarchical beacons but NO graph integration. Query    │
+│ Beacon          │ collapse is spatial, not topological.                     │
+├─────────────────┼─────────────────────────────────────────────────────────────┤
+│ GraphRAG        │ Community summaries are pre-computed, not query-optimized.│
+│                 │ No real-time adaptation.                                  │
+└─────────────────┴─────────────────────────────────────────────────────────────┘
+
+OUR SYSTEM MUST BEAT ALL OF THEM ON:
+- Token efficiency per query (target: 100x+ reduction vs naive)
+- Retrieval accuracy (exact page match rate ≥ 95% on synthetic benchmarks)
+- Determinism (bit-for-bit reproducible across runs)
+- Latency (p95 < 50ms for B3→B1 collapse on 10M token corpus)
+- Temporal reasoning (memory strength evolves without manual timestamps)
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# SECTION 2: THE MATHEMATICAL CORE — SPECTRAL MEMORY MANIFOLD
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+## 2.1 The Foundational Axiom
+
+All knowledge lives on a low-dimensional Riemannian manifold ℳ embedded in
+semantic space ℝ^d. The graph Laplacian L IS the metric tensor. Vector similarity
+IS geodesic distance. Temporal evolution IS heat diffusion. ONE mathematical
+object, ALL operations.
+
+## 2.2 The Beacon Hierarchy (Information-Theoretic Compression)
+
+┌─────────┬────────────────────┬──────────────────────────────────────────────┐
+│ LEVEL   │ REPRESENTATION     │ MATHEMATICAL OPERATION                       │
+├─────────┼────────────────────┼──────────────────────────────────────────────┤
+│ B1      │ Token chunk        │ Tangent vector v_i ∈ ℝ^d (embedding)         │
+│         │ (1,000 tokens)     │                                              │
+├─────────┼────────────────────┼──────────────────────────────────────────────┤
+│ B2      │ 10 B1 beacons      │ Gaussian patch on tangent space:             │
+│         │ (10,000 tokens)    │ G_j = (μ_j, Σ_j) where μ_j = mean(v_i),      │
+│         │                    │ Σ_j = precision matrix from local covariance │
+├─────────┼────────────────────┼──────────────────────────────────────────────┤
+│ B3      │ 10 B2 beacons      │ Spectral signature: eigenvalues λ of         │
+│         │ (100,000 tokens)   │ normalized Laplacian L_sym = D^(-1/2)LD^(-1/2)│
+│         │                    │ λ_2 (Fiedler value) bounds Cheeger constant  │
+│         │                    │ → global connectivity preserved              │
+└─────────┴────────────────────┴──────────────────────────────────────────────┘
+
+B3→B2 reconstruction: Given spectral signature λ, recover Gaussian patches
+via spectral graph drawing: X = Λ^(-1/2)U^T where U contains eigenvectors.
+Bounded error: ||L_reconstructed - L_original||_F ≤ ε where ε = O(1/√k) for
+k eigenvectors retained.
+
+## 2.3 Deterministic Retrieval via Seeded Covering Codes
+
+NEVER use FAISS, HNSW, or any approximate nearest neighbor. These are
+stochastic and non-reproducible.
+
+INSTEAD: Partition the manifold into Voronoi cells using seeded
+Locality-Sensitive Hashing (LSH):
+
+1. Generate m hash functions h_i(x) = ⌊(a_i · x + b_i) / w⌋
+2. Seed a_i ~ N(0, I) using fixed seed = 42
+3. Seed b_i ~ Uniform(0, w) using fixed seed = 42
+4. Query q hashes to bucket b(q) = (h_1(q), ..., h_m(q))
+5. Exact scan within bucket (bounded size by design)
+
+DETERMINISM GUARANTEE: Same query vector → same bucket → same scan order →
+same result. Always.
+
+## 2.4 Temporal Dynamics — Fokker-Planck on the Graph
+
+Memory strength ρ(x, t) for concept node x evolves as:
+
+    ∂ρ/∂t = D·∇²ρ - ∇·(v·ρ) + S - λ·ρ
+
+Where:
+- D·∇²ρ  = Diffusion (spreads to related concepts via graph Laplacian)
+- ∇·(v·ρ) = Drift (Hebbian: retrieved concepts strengthen, v = query gradient)
+- S      = Source (new ingestion adds strength)
+- λ·ρ    = Decay (exponential forgetting, λ = 0.01 per time unit)
+
+DISCRETIZED UPDATE (per retrieval event):
+    ρ_{t+1} = ρ_t + α·(L·ρ_t) + β·(q⊙ρ_t) - γ·ρ_t
+
+Where:
+- L = normalized graph Laplacian
+- q = query activation vector (1 at activated nodes, 0 elsewhere)
+- α = 0.1 (diffusion coefficient)
+- β = 0.5 (Hebbian reinforcement)
+- γ = 0.01 (decay rate)
+- ⊙ = element-wise product
+
+This gives INTRINSIC temporal reasoning. No timestamp metadata. No manual
+"recency bias" heuristics. Memory strength is a physical field on the manifold.
+
+## 2.5 Context Packing — Submodular Optimization
+
+Given token budget B, select subset S maximizing information coverage:
+
+    max_S  Σ_x max_{m∈S} κ(x,m)·ρ(x)    s.t. Σ_{m∈S} |m| ≤ B
+
+Where κ(x,m) = exp(-||x - μ_m||²_Σ_m) is the Gaussian kernel between concept x
+and beacon m.
+
+This is a submodular maximization problem with a knapsack constraint.
+GREEDY ALGORITHM (optimal approximation):
+1. Initialize S = ∅, remaining = B
+2. While remaining > 0:
+   a. For each candidate m not in S:
+      marginal_gain(m) = [f(S ∪ {m}) - f(S)] / |m|
+   b. Pick m* = argmax marginal_gain(m)
+   c. If |m*| > remaining: break
+   d. S ← S ∪ {m*}, remaining -= |m*|
+3. Return S
+
+APPROXIMATION GUARANTEE: f(S_greedy) ≥ (1 - 1/e)·f(S_optimal) ≈ 0.63·OPT
+
+## 2.6 The Query Collapse Pipeline (Deterministic)
+
+A query Q executes as a MEASUREMENT OPERATOR on the spectral manifold:
+
+    STEP 1: Embed Q → q ∈ ℝ^d
+    STEP 2: Hash q → bucket b(q) via seeded LSH
+    STEP 3: Compute concept proximity: prox_i = exp(-||q - v_i||²) for all v_i in bucket
+    STEP 4: Diffuse prox via Fokker-Planck: active = ρ ⊙ (I + αL)·prox
+    STEP 5: Rank B3 regions by active mass: score_j = Σ_{x∈region_j} active_x
+    STEP 6: Select top-k B3 regions, expand to B2, then B1
+    STEP 7: Pack B1 pages via submodular greedy into token budget B
+    STEP 8: Return ordered page list via MCP JSON-RPC
+
+This is NOT "wavefunction collapse". It is a deterministic spectral projection
+with proven approximation bounds.
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# SECTION 3: ARCHITECTURE SPECIFICATION
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+## 3.1 Data Flow (ASCII)
+
+    Raw Tokens → Tokenizer → Page Slicer (1K chunks)
+        ↓
+    B1 Encoder ──→ Tangent vectors v_i ∈ ℝ^d
+        ↓
+    Entity Extractor ──→ Triples (S,P,O) with Beacon_ID, Page_ID
+        ↓
+    Sparse Adjacency A (CSR) ←── Concept co-occurrence weights
+        ↓
+    B2 Compressor ──→ Gaussian patches G_j = (μ_j, Σ_j)
+        ↓
+    B3 Compressor ──→ Spectral signatures λ(L_sym)
+        ↓
+    ┌─────────────────────────────────────────────────────────────┐
+    │                    SPECTRAL MEMORY MANIFOLD ℳ                │
+    │  (Unified: vectors + graph + temporal + compression)        │
+    └─────────────────────────────────────────────────────────────┘
+        ↑
+    Query Q ──→ Embed q ──→ LSH bucket ──→ Concept diffusion ──→
+    B3 rank ──→ B2 expand ──→ B1 expand ──→ Submodular pack ──→
+    MCP JSON-RPC response
+
+## 3.2 Component Map
+
+┌────────────────────────┬─────────────────────────────────────────────────────┐
+│ COMPONENT              │ RESPONSIBILITY                                      │
+├────────────────────────┼─────────────────────────────────────────────────────┤
+│ mcp_server.py          │ MCP stdio server. JSON-RPC 2.0. Tool registration.│
+│                        │ Request routing. Error codes. Structured logging. │
+├────────────────────────┼─────────────────────────────────────────────────────┤
+│ math_engine.py         │ ALL mathematical operations: embeddings, LSH,     │
+│                        │ Laplacian, diffusion, submodular optimization.    │
+│                        │ Pure NumPy/SciPy. Zero external ML APIs.          │
+├────────────────────────┼─────────────────────────────────────────────────────┤
+│ memory_manager.py      │ Virtual memory tree. Page allocation. LRU eviction  │
+│                        │ backed by wave interference (ρ·κ). Disk persistence│
+│                        │ via pickle/parquet. Concurrency-safe.             │
+├────────────────────────┼─────────────────────────────────────────────────────┤
+│ knowledge_graph.py     │ DeterministicKnowledgeGraph class. CSR matrix.    │
+│                        │ Node↔index mapping. Concept↔Beacon mapping.     │
+│                        │ Manual PageRank-style diffusion. Persistence.     │
+├────────────────────────┼─────────────────────────────────────────────────────┤
+│ quantum_gate.py        │ Orchestration layer. Executes Q → b(q) → diffusion │
+│                        │ → B3→B2→B1 → submodular pack → text extraction.   │
+├────────────────────────┼─────────────────────────────────────────────────────┤
+│ entity_extractor.py    │ Pluggable extractor ABC. Concrete implementation: │
+│                        │ regex/heuristic pattern matching on POS tags.   │
+│                        │ No LLM calls in core path (determinism).          │
+├────────────────────────┼─────────────────────────────────────────────────────┤
+│ main.py                │ Initialization. Heavy token stream ingestion.     │
+│                        │ Concurrent client simulation. E2E verification.   │
+├────────────────────────┼─────────────────────────────────────────────────────┤
+│ tests/                 │ Unit tests for every module. Integration tests.   │
+│                        │ Performance regression gates. Fidelity assertions.│
+└────────────────────────┴─────────────────────────────────────────────────────┘
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# SECTION 4: COMPLETE FILE SPECIFICATIONS
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+## FILE 1: requirements.txt
+
+numpy==1.26.4
+scipy==1.13.1
+scikit-learn==1.5.2
+pydantic==2.9.2
+typing-extensions==4.12.2
+structlog==24.4.0
+pytest==8.3.3
+pytest-benchmark==4.0.0
+
+## FILE 2: mcp_server.py
+
+Implement a FULL Model Context Protocol (MCP) server over stdio:
+
+- Use `sys.stdin` / `sys.stdout` for JSON-RPC 2.0 message loop.
+- Pydantic models for ALL messages: JSONRPCRequest, JSONRPCResponse,
+  JSONRPCError, ToolCall, ToolResult.
+- Tool registration system: `register_tool(name, handler, schema)`.
+- EXACTLY ONE tool exposed: `collapse_quantum_memory`.
+- Request schema (Pydantic):
+    class CollapseRequest(BaseModel):
+        query: str
+        max_tokens: int = Field(default=4096, ge=1, le=128000)
+        temperature: float = Field(default=0.0)  # ignored, determinism enforced
+        required_concepts: list[str] = Field(default_factory=list)
+        session_id: str = Field(default="default")
+- Response schema:
+    class CollapseResult(BaseModel):
+        pages: list[str]          # Retrieved text pages in priority order
+        beacon_ids: list[str]     # Source beacon identifiers
+        concepts_activated: list[str]  # Concept nodes that fired
+        confidence_score: float   # 0.0-1.0, derived from submodular coverage
+        tokens_used: int          # Actual token count of returned pages
+        tokens_total: int         # Sum of all candidate page tokens
+        compression_ratio: float  # tokens_total / tokens_used
+        latency_ms: float         # Wall-clock time for collapse
+- Error codes (match JSON-RPC 2.0 spec):
+    -32600: Invalid Request
+    -32601: Method not found
+    -32602: Invalid params
+    -32603: Internal error
+    -32000: Manifold not initialized
+    -32001: Query embedding failed
+    -32002: Empty result set
+- Defensive programming: try-except around EVERY handler. Log all errors
+  via structlog with full context (session_id, query_hash, stack trace).
+- Graceful shutdown on SIGINT/SIGTERM.
+- NO ASYNCIO. Use threading for concurrency. MCP over stdio is synchronous
+  by protocol design.
+
+## FILE 3: math_engine.py
+
+This is the mathematical heart. Every function must be vectorized NumPy.
+
+### 3.1 Sinusoidal Concept Encoder
+    def sinusoidal_encode(concepts: list[str], d_model: int = 512) -> np.ndarray:
+        """
+        Deterministic static embedding for raw concept strings.
+        Uses a fixed random Fourier feature map:
+        z(x) = [cos(w_1·x + b_1), ..., cos(w_d·x + b_d)]
+        where w_i ~ N(0, σ²I), b_i ~ Uniform(0, 2π)
+        Seeds: w_seed=42, b_seed=43. NEVER change.
+        Input: list of concept strings.
+        Output: ndarray shape (n_concepts, d_model), dtype float64.
+        """
+
+### 3.2 Seeded LSH Voronoi Partition
+    class SeededLSH:
+        def __init__(self, d: int, w: float = 10.0, m: int = 8, seed: int = 42):
+            """
+            d: dimension
+            w: bucket width
+            m: number of hash functions
+            seed: fixed random seed for reproducibility
+            """
+        def hash_vector(self, x: np.ndarray) -> tuple[int, ...]:
+            """Return m-dimensional bucket index."""
+        def hash_batch(self, X: np.ndarray) -> list[tuple[int, ...]]:
+            """Vectorized batch hashing."""
+
+### 3.3 Graph Laplacian Operations
+    def normalized_laplacian(A: sp.csr_matrix) -> sp.csr_matrix:
+        """
+        Compute L_sym = I - D^(-1/2) A D^(-1/2)
+        A: weighted adjacency (CSR), symmetric, non-negative.
+        Returns: sparse CSR matrix.
+        """
+    def spectral_signature(L_sym: sp.csr_matrix, k: int = 10) -> np.ndarray:
+        """
+        Compute top-k eigenvalues of L_sym using scipy.sparse.linalg.eigsh.
+        Returns: ndarray shape (k,), sorted ascending.
+        """
+    def reconstruct_from_spectral(eigenvalues: np.ndarray, eigenvectors: np.ndarray,
+                                   n_nodes: int) -> sp.csr_matrix:
+        """
+        Reconstruct adjacency from spectral signature.
+        Uses spectral graph drawing: X = diag(λ)^(-1/2) · U^T
+        Then A_ij = exp(-||x_i - x_j||² / 2σ²)
+        Returns: sparse CSR adjacency approximation.
+        """
+
+### 3.4 Fokker-Planck Diffusion
+    def fokker_planck_step(rho: np.ndarray, L: sp.csr_matrix,
+                           q: np.ndarray, alpha: float = 0.1,
+                           beta: float = 0.5, gamma: float = 0.01) -> np.ndarray:
+        """
+        One discrete step of Fokker-Planck on the graph.
+        rho: current strength vector, shape (n_nodes,)
+        L: normalized Laplacian (CSR)
+        q: query activation vector, shape (n_nodes,) — 1 at activated, 0 elsewhere
+        Returns: rho_{t+1}, shape (n_nodes,)
+        Formula: ρ_{t+1} = ρ_t + α·(L·ρ_t) + β·(q⊙ρ_t) - γ·ρ_t
+        """
+
+### 3.5 Submodular Context Packing
+    def submodular_pack(candidates: list[dict], budget: int) -> list[str]:
+        """
+        candidates: list of dicts, each with keys:
+            'id': str, 'text': str, 'token_count': int,
+            'concept_coverage': dict[str, float]  # concept_id -> coverage score
+            'strength': float  # ρ value
+        budget: max tokens
+        Returns: ordered list of candidate IDs maximizing submodular coverage.
+        Uses greedy algorithm with (1-1/e) approximation guarantee.
+        """
+
+### 3.6 Gaussian Patch Operations (B2)
+    def compute_gaussian_patch(vectors: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """
+        vectors: ndarray shape (n, d) — B1 embeddings in a neighborhood
+        Returns: (mu, Sigma_inv) where
+            mu = mean(vectors, axis=0)
+            Sigma_inv = pinv(cov(vectors))  # pseudo-inverse for stability
+        """
+
+## FILE 4: knowledge_graph.py
+
+Implement from scratch. NO NetworkX. NO Neo4j.
+
+    class DeterministicKnowledgeGraph:
+        def __init__(self, d_model: int = 512):
+            self.node_to_idx: dict[str, int] = {}      # concept → matrix index
+            self.idx_to_node: dict[int, str] = {}      # matrix index → concept
+            self.beacon_map: dict[str, list[str]] = {} # concept → [beacon_id, ...]
+            self.A: sp.csr_matrix | None = None       # weighted adjacency
+            self.L_sym: sp.csr_matrix | None = None   # normalized Laplacian
+            self.rho: np.ndarray | None = None        # temporal strength vector
+            self.d_model = d_model
+            self._lock = threading.RLock()            # thread-safe mutations
+
+        def add_triplet(self, subject: str, predicate: str, object: str,
+                        weight: float = 1.0,
+                        beacon_id: str = "",
+                        page_id: str = "") -> None:
+            """
+            Add (S,P,O) to graph. Create nodes if absent.
+            Update adjacency A with weight.
+            Map beacon_id and page_id to all three nodes.
+            Thread-safe.
+            """
+
+        def build_laplacian(self) -> None:
+            """
+            Recompute L_sym from current A. Call after batch ingestion.
+            """
+
+        def concept_diffusion(self, query_concepts: list[str],
+                              steps: int = 3) -> np.ndarray:
+            """
+            Execute heat diffusion from query concepts.
+            1. Build activation vector q (1.0 at query concept indices)
+            2. Run Fokker-Planck for `steps` iterations
+            3. Return final ρ vector
+            """
+
+        def get_active_beacons(self, top_k: int = 10) -> list[str]:
+            """
+            Return top-k beacon IDs by aggregated ρ·weight across concepts.
+            """
+
+        def save(self, path: str) -> None:
+            """Persist to disk: pickle node maps, npz for sparse matrix, npy for ρ."""
+
+        def load(self, path: str) -> None:
+            """Load from disk. Validate dimensions match. Rebuild L_sym."""
+
+## FILE 5: memory_manager.py
+
+    class VirtualMemoryTree:
+        def __init__(self, page_size: int = 1000, cache_size: int = 100):
+            """
+            page_size: tokens per B1 page
+            cache_size: max B1 pages in working memory (LRU)
+            """
+            self.pages: OrderedDict[str, str] = OrderedDict()  # page_id → text
+            self.beacon_b1: dict[str, np.ndarray] = {}         # beacon_id → embedding
+            self.beacon_b2: dict[str, tuple] = {}              # beacon_id → (mu, Sigma_inv)
+            self.beacon_b3: dict[str, np.ndarray] = {}         # beacon_id → spectral sig
+            self.lru_scores: dict[str, float] = {}             # page_id → ρ·κ score
+            self.page_to_beacon: dict[str, str] = {}           # page_id → b1_beacon_id
+            self._lock = threading.RLock()
+
+        def ingest_stream(self, token_stream: Iterator[str]) -> Iterator[str]:
+            """
+            Consume token stream, chunk into pages, assign beacon IDs,
+            yield page IDs. MUST NOT materialize entire stream.
+            """
+
+        def allocate_b1(self, page_id: str, text: str,
+                        embedding: np.ndarray) -> str:
+            """
+            Store B1 beacon. If cache full, evict lowest ρ·κ page.
+            Return beacon_id.
+            """
+
+        def compress_b2(self, b1_beacons: list[str]) -> str:
+            """
+            Group 10 B1 beacons, compute Gaussian patch, store B2.
+            Return B2 beacon_id.
+            """
+
+        def compress_b3(self, b2_beacons: list[str]) -> str:
+            """
+            Group 10 B2 beacons, compute spectral signature, store B3.
+            Return B3 beacon_id.
+            """
+
+        def get_page(self, page_id: str) -> str | None:
+            """
+            Retrieve page text. Update LRU score = current ρ·κ.
+            Return None if not found (spill to disk occurred).
+            """
+
+        def evict_page(self, page_id: str) -> None:
+            """
+            Write page to disk under .context/pages/{page_id}.txt
+            Remove from working memory.
+            """
+
+        def load_page_from_disk(self, page_id: str) -> str | None:
+            """
+            Read from disk. Return None if missing.
+            """
+
+## FILE 6: entity_extractor.py
+
+    from abc import ABC, abstractmethod
+
+    class EntityExtractor(ABC):
+        @abstractmethod
+        def extract(self, text: str) -> list[tuple[str, str, str]]:
+            """
+            Extract (Subject, Predicate, Object) triples from text.
+            Return list of tuples.
+            """
+
+    class HeuristicExtractor(EntityExtractor):
+        """
+        Deterministic heuristic extractor using regex patterns.
+        Pattern: [NOUN PHRASE] [VERB/RELATION] [NOUN PHRASE]
+        Uses simple POS-tag simulation via word lists (no spaCy dependency).
+        """
+        def extract(self, text: str) -> list[tuple[str, str, str]]:
+            # Implementation: split sentences, find SVO patterns via regex,
+            # normalize to lowercase, strip punctuation.
+            # Must handle edge cases: empty text, no matches, very long text.
+            pass
+
+## FILE 7: quantum_gate.py
+
+    class QuantumGate:
+        def __init__(self,
+                     math_engine: MathEngine,
+                     memory_tree: VirtualMemoryTree,
+                     knowledge_graph: DeterministicKnowledgeGraph,
+                     lsh: SeededLSH):
+            self.math = math_engine
+            self.tree = memory_tree
+            self.graph = knowledge_graph
+            self.lsh = lsh
+
+        def collapse(self, query: str, max_tokens: int = 4096,
+                     required_concepts: list[str] = None) -> CollapseResult:
+            """
+            EXECUTE THE FULL PIPELINE:
+            1. Embed query → q (via sinusoidal_encode on query tokens)
+            2. Hash q → bucket via LSH
+            3. Get concepts in bucket from graph
+            4. Compute proximity = exp(-||q - v_i||²)
+            5. Diffuse via Fokker-Planck: active = graph.concept_diffusion(...)
+            6. Rank B3 regions by active mass
+            7. Expand top-k B3 → B2 → B1
+            8. Submodular pack into max_tokens
+            9. Assemble CollapseResult with telemetry
+            """
+            # Every step must have explicit error handling.
+            # If any step fails, return CollapseResult with empty pages and
+            # appropriate error code in metadata.
+
+## FILE 8: main.py
+
+    def main():
+        """
+        1. Initialize all components.
+        2. Generate synthetic corpus: 5,000,000 tokens with explicit
+           cross-references separated by 2,000,000 tokens.
+           Example: "Definition of X is..." at position 0,
+           "Recall that X refers to..." at position 2,000,000.
+        3. Ingest corpus via memory_tree.ingest_stream().
+        4. Extract triplets via HeuristicExtractor, add to graph.
+        5. Build Laplacian.
+        6. Simulate 100 concurrent queries via threading.Thread.
+        7. Assert: Query "What is the definition of X?" returns the exact
+           page containing the definition AND the cross-reference page.
+        8. Print telemetry: latency distribution, compression ratio,
+           retrieval accuracy, memory usage.
+        9. If accuracy < 95%, FAIL and print diagnostic.
+        """
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# SECTION 5: TESTING & VERIFICATION CONTRACT
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Every module MUST have a corresponding test file in tests/:
+
+    tests/test_math_engine.py
+        - test_seeded_lsh_determinism: same vector → same bucket, 1000 trials
+        - test_laplacian_symmetry: L_sym must be symmetric
+        - test_fokker_planck_conservation: total probability mass must not explode
+        - test_submodular_approximation_ratio: compare greedy vs brute force on small N
+        - test_spectral_reconstruction_error: ||L_recon - L_orig||_F < 0.1 for k=10
+
+    tests/test_knowledge_graph.py
+        - test_add_triplet_idempotent: same triplet twice = same graph state
+        - test_diffusion_spread: activated concept must increase neighbor ρ
+        - test_persistence_roundtrip: save → load → identical node maps and A
+
+    tests/test_memory_manager.py
+        - test_ingest_stream_yields_pages: stream of 5000 tokens → 5 page IDs
+        - test_lru_eviction: cache size 2, access 3 pages → page 1 evicted
+        - test_disk_spill_roundtrip: evict → load_from_disk → identical text
+
+    tests/test_quantum_gate.py
+        - test_collapse_determinism: same query × 100 → identical page order
+        - test_cross_reference_retrieval: 5M token corpus, X defined at pos 0,
+          referenced at pos 2M → both pages in result
+        - test_empty_query_graceful: "" → empty result, no exception
+
+    tests/test_integration.py
+        - test_end_to_end_10m_tokens: ingest 10M tokens, query 100 times,
+          assert p95 latency < 50ms, accuracy ≥ 95%, compression ≥ 50x
+
+## Performance Gates (FAIL = REWRITE)
+
+┌────────────────────┬─────────────────────────────────────────────────────────┐
+│ METRIC             │ GATE                                                    │
+├────────────────────┼─────────────────────────────────────────────────────────┤
+│ Latency (p95)      │ < 50ms for B3→B1 collapse on 10M token corpus         │
+├────────────────────┼─────────────────────────────────────────────────────────┤
+│ Retrieval accuracy │ ≥ 95% exact page match on synthetic cross-reference Q&A │
+├────────────────────┼─────────────────────────────────────────────────────────┤
+│ Compression ratio  │ ≥ 50x (total corpus tokens / returned tokens per query) │
+├────────────────────┼─────────────────────────────────────────────────────────┤
+│ Determinism        │ 100% — same query + state = bit-identical output      │
+├────────────────────┼─────────────────────────────────────────────────────────┤
+│ Memory overhead    │ < 2 bytes per token at B3 level (including graph)       │
+├────────────────────┼─────────────────────────────────────────────────────────┤
+│ Thread safety      │ No race conditions under 100 concurrent queries         │
+└────────────────────┴─────────────────────────────────────────────────────────┘
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# SECTION 6: ANTI-PATTERNS — IF YOU DO ANY OF THESE, YOU FAILED
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[ ] Using `random` without a fixed seed.
+[ ] Using FAISS, HNSW, Annoy, or any approximate nearest neighbor library.
+[ ] Using NetworkX, Neo4j, or any high-level graph library for the core graph.
+[ ] Using `asyncio` in the MCP server (stdio is synchronous by protocol).
+[ ] Emitting a placeholder comment like "# TODO" or "# ...".
+[ ] Leaving a function with `pass` or `...`.
+[ ] Using `Any` as a type hint.
+[ ] Catching `Exception` without re-raising or logging context.
+[ ] Using mutable default arguments (e.g., `def f(x=[])`).
+[ ] Storing the entire corpus in RAM without streaming.
+[ ] Using an LLM API in the hot path (embedding, extraction, or query).
+[ ] Making the graph undirected when the relation has directionality.
+[ ] Ignoring scipy.sparse matrix sparsity patterns (must use CSR operations).
+[ ] Using `float32` when `float64` is specified.
+[ ] Returning `None` without documenting when and why.
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# SECTION 7: EXECUTION CHECKLIST
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Before declaring complete, verify:
+
+[ ] All 8 files exist and are syntactically valid Python.
+[ ] `python -m py_compile` passes on every file.
+[ ] `pytest tests/` passes with 0 failures.
+[ ] `pytest tests/test_integration.py` passes performance gates.
+[ ] `python main.py` runs end-to-end and prints telemetry.
+[ ] No file contains the word "TODO", "FIXME", "placeholder", or "...".
+[ ] Every function has a docstring explaining inputs, outputs, and invariants.
+[ ] Every class has `__init__` with explicit parameter types.
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# SECTION 8: OUTPUT FORMAT
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Write files one at a time. For each file:
+1. State the filename.
+2. Write the COMPLETE file content in a fenced code block.
+3. After writing, run `python -m py_compile <file>` mentally and report
+   "SYNTAX OK" or "SYNTAX ERROR — fixing...".
+4. Do NOT proceed to the next file until the current one is complete and valid.
+
+After all files are written, run the test suite and report results.
+If any test fails, fix the failure before proceeding.

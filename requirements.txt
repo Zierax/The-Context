@@ -1,0 +1,27 @@
+# ============================================================================
+# "The Context" — Spectral Memory Manifold Co-Processor
+# Dependency Manifest (SPEC VERSION PINS)
+# ============================================================================
+# WARNING: Pin versions explicitly. Upgrading outside of validated compatibility
+# matrices may cause silent precision drift in beacon collapse operations.
+
+# --- Core Mathematical & Numerical Foundation ---
+numpy==2.5.1                  # Heavy matrix math, tensor transformations, sinusoidal embeddings
+scipy==1.18.0                # Sparse CSR/CSC matrix operations, linear solvers for graph diffusion
+scikit-learn==1.9.0          # Vectorized pairwise distance computation for concept matching
+
+# --- Strict Configuration & Data Validation ---
+pydantic==2.13.4             # JSON-RPC schema validation, configuration models
+
+# --- Static Analysis Compliance ---
+typing-extensions==4.16.0    # PEP 692, PEP 695 compliance for strict type annotations
+
+# --- Structured Logging ---
+structlog==26.1.0            # Structured telemetry emission for all operations
+
+# --- Serialization ---
+orjson==3.11.9              # Ultra-fast JSON encoding/decoding for MCP message frames
+
+# --- Testing & Benchmarking ---
+pytest==9.1.1                # Test framework
+pytest-benchmark==5.2.3      # Performance regression gates
