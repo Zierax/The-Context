@@ -1,31 +1,39 @@
-# The Context — Spectral Memory Manifold Co-Processor
+# The Context — Hierarchical Beacon Memory System
 
-**v0.1-beta** | Python 3.10+ | Pure NumPy/SciPy | Deterministic | Thread-Safe
+**v0.2-alpha** | Python 3.10+ | Pure NumPy/SciPy | Deterministic | Thread-Safe
 
 ---
 
 ## Overview
 
-The Context is a production-grade memory co-processor that achieves **200x compression** of25M tokens into a 256K context window without any loss of retrieval accuracy.
+The Context is a hierarchical beacon memory system that stores text in a multi-level compressed structure (B1→B2→B3) with a knowledge graph for query routing. It retrieves relevant pages from a large corpus using spectral signatures and Fokker-Planck diffusion.
 
-### Key Features
+### What It Actually Does
 
-- **200x Compression Ratio**: 25M tokens → 256K context window
-- **100% Deterministic**: Same query + same state = bit-identical output
-- **Thread-Safe**: No race conditions under 100 concurrent queries
-- **Zero External ML APIs**: Pure NumPy/SciPy stack, no LLM calls in hot path
-- **Temporal Reasoning**: Fokker-Planck diffusion for memory strength evolution
+1. **Ingests text** into 1000-token pages (B1 beacons)
+2. **Compresses** 10 B1→1 B2 (Gaussian patch), 10 B2→1 B3 (spectral signature)
+3. **Extracts knowledge** via regex SVO triples into a knowledge graph
+4. **Routes queries** using LSH bucket matching + Fokker-Planck diffusion
+5. **Retrieves pages** by expanding B3→B2→B1→pages
 
-### Performance Metrics
+### What It Doesn't Do
 
-| Metric | Target | Achieved | Status |
-|--------|--------|----------|--------|
-| Compression Ratio | ≥ 200x | **200x** | PASS |
-| Retrieval Accuracy | ≥ 95% | **100%** | PASS |
-| Latency (p95) | < 50ms | **< 50ms** | PASS |
-| Memory Overhead | < 2 bytes/token | **1.29 bytes/token** | PASS |
-| Determinism | 100% | **100%** | PASS |
-| Tests | 80/80 | **80/80** | PASS |
+- **No compression of raw text** — memory overhead is ~1.09 bytes/token (stores more than raw text)
+- **No zero-loss reconstruction** — SVO extraction loses information; you cannot reconstruct original text from triples
+- **No quantum computing** — all operations are classical NumPy/SciPy
+- **No production retrieval accuracy** — only tested on synthetic data
+
+### Honest Metrics (1M token synthetic corpus)
+
+| Metric | Value | Notes |
+|--------|-------|-------|
+| Memory overhead | 1.09 bytes/token | Stores MORE than raw text (0.52 bytes/token) |
+| Compression ratio | 0.48x | Memory is 2x larger than raw text |
+| Ingest throughput | 7,155 tok/s | Single-threaded |
+| Query latency (p50) | 0.6ms | Single query |
+| Query latency (p99) | 2.1ms | Single query |
+| Test suite | 80/80 | All pass |
+| Determinism | 100% | Same input → same output |
 
 ## Quick Start
 
@@ -66,34 +74,45 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed architecture.
 | Math Engine | `math_engine.py` | All vector/matrix operations |
 | Knowledge Graph | `knowledge_graph.py` | CSR adjacency, Laplacian, diffusion |
 | Memory Manager | `memory_manager.py` | Virtual memory tree, LRU eviction |
-| Quantum Gate | `quantum_gate.py` | Query collapse pipeline orchestration |
+| Query Engine | `query_engine.py` | Query pipeline orchestration |
 | Entity Extractor | `entity_extractor.py` | Deterministic SVO extraction |
 | MCP Server | `mcp_server.py` | JSON-RPC 2.0 over stdio |
-| Semantic Compressor | `semantic_compressor.py` | Knowledge compression (new) |
+| Semantic Compressor | `semantic_compressor.py` | Knowledge compression |
 
-## Benchmarks
+## How the Beacon Hierarchy Works
 
-See [docs/BENCHMARKS.md](docs/BENCHMARKS.md) for detailed benchmarks.
+```
+B1 (1000 tokens)  →  B2 (10 B1s)  →  B3 (10 B2s)
+  tangent vector       Gaussian patch    spectral signature
+  128-d float16        128-d mu + Sigma  5 eigenvalues + 5 vectors
+```
 
-### Benchmark Results
+Each level compresses 10 beacons from the level below. The hierarchy enables O(log n) query routing instead of O(n) linear scan.
 
-| Benchmark | Result | Target | Status |
-|-----------|--------|--------|--------|
-| 10K Tokens | 100x compression | ≥ 50x | PASS |
-| 100K Tokens | 150x compression | ≥ 50x | PASS |
-| 1M Tokens | 200x compression | ≥ 50x | PASS |
-| 5M Tokens | 200x compression | ≥ 50x | PASS |
-| 10M Tokens | 200x compression | ≥ 50x | PASS |
-| Concurrent Queries | 0 race conditions | 0 | PASS |
-| Cross-Reference | 100% accuracy | ≥ 95% | PASS |
-| Spectral Reconstruction | 0.08 error | < 0.1 | PASS |
+### Memory Budget (projected at 0.52 bytes/token)
 
-## Documentation
+| Corpus Size | Memory | Notes |
+|-------------|--------|-------|
+| 1M tokens | 0.50 MB | Measured |
+| 25M tokens | 12.5 MB | Projected |
+| 100M tokens | 50 MB | Projected |
+| 500M tokens | 249 MB | Projected |
 
-- [Architecture](docs/ARCHITECTURE.md) - Detailed architecture
-- [Benchmarks](docs/BENCHMARKS.md) - Performance benchmarks
-- [Results](results/RESULTS.md) - Current results
-- [Base Specification](base.txt) - Original specification
+## Known Limitations
+
+1. **Information loss** — SVO extraction is lossy; original text cannot be reconstructed
+2. **Synthetic data only** — No evaluation on real benchmarks (RULER, LongBench, etc.)
+3. **Small corpus tested** — Largest tested: 1M tokens; 25M+ is projected
+4. **Regex extraction** — Entity extractor uses patterns, not ML; misses many relationships
+5. **No evaluation framework** — No standardized benchmarks for comparison
+
+## Next Steps
+
+- [ ] Evaluate on RULER benchmark
+- [ ] Evaluate on LongBench
+- [ ] Add adversarial distractor tests
+- [ ] Measure actual retrieval accuracy on real data
+- [ ] Compare against baselines (vanilla RAG, LongNet, etc.)
 
 ## License
 

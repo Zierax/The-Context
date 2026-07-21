@@ -1,6 +1,6 @@
 # ============================================================================
-# quantum_gate.py — Spectral Memory Manifold Co-Processor
-# ORCHESTRATION LAYER: Query collapse pipeline execution
+# query_engine.py — Hierarchical Beacon Query Engine
+# ORCHESTRATION LAYER: Query pipeline execution
 # Executes Q -> LSH bucket -> concept diffusion -> B3->B2->B1 expansion
 # -> submodular packing -> CollapseResult assembly
 # ============================================================================
@@ -28,7 +28,7 @@ logger = structlog.get_logger(__name__)
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# Pydantic Models (shared between quantum_gate and mcp_server)
+# Pydantic Models (shared between query_engine and mcp_server)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 
@@ -57,12 +57,12 @@ class CollapseResult(BaseModel):
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# QuantumGate: Orchestration Layer
+# QueryEngine: Orchestration Layer
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 
-class QuantumGate:
-    """Orchestration layer for the spectral memory manifold collapse pipeline.
+class QueryEngine:
+    """Hierarchical beacon query engine.
 
     Executes the full query→result pipeline deterministically:
     1. Embed query → q
@@ -70,16 +70,10 @@ class QuantumGate:
     3. Get concepts in bucket from knowledge graph
     4. Compute proximity = exp(-||q - v_i||²)
     5. Diffuse via Fokker-Planck
-    6. Rank B3 regions by active mass
-    7. Expand top-k B3 → B2 → B1
+    6. Rank beacon regions by active mass
+    7. Expand top-k B3 → B2 → B1 (with B2/B1 fallback)
     8. Submodular pack into max_tokens
     9. Assemble CollapseResult with telemetry
-
-    Optimised with:
-    - Cached concept embeddings (avoids re-encoding all concepts per query)
-    - Cached LSH buckets for all concepts
-    - Reverse index lookups from VirtualMemoryTree
-    - beacon_to_concepts reverse map from DeterministicKnowledgeGraph
     """
 
     def __init__(
@@ -89,7 +83,7 @@ class QuantumGate:
         lsh: SeededLSH,
         d_model: int = 512,
     ) -> None:
-        """Initialise the QuantumGate with core components.
+        """Initialise the QueryEngine with core components.
 
         Args:
             tree: VirtualMemoryTree managing page storage and beacon hierarchy.
@@ -119,7 +113,7 @@ class QuantumGate:
                 d_model=d_model,
             )
 
-        logger.debug("QuantumGate initialized", d_model=d_model)
+        logger.debug("QueryEngine initialized", d_model=d_model)
 
     def _ensure_caches(self) -> None:
         """Build or rebuild concept embedding and LSH bucket caches.

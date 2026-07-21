@@ -16,7 +16,7 @@ from typing import Any, Callable
 import structlog
 from pydantic import BaseModel, Field, ValidationError
 
-from quantum_gate import QuantumGate, CollapseRequest, CollapseResult
+from query_engine import QueryEngine, CollapseRequest, CollapseResult
 
 logger = structlog.get_logger(__name__)
 
@@ -122,13 +122,13 @@ class MCPServer:
     Handles `tools/list` and `tools/call` MCP methods.
     """
 
-    def __init__(self, quantum_gate: QuantumGate) -> None:
-        """Initialise the MCP server with a QuantumGate instance.
+    def __init__(self, query_engine: QueryEngine) -> None:
+        """Initialise the MCP server with a QueryEngine instance.
 
         Args:
-            quantum_gate: Initialised QuantumGate for collapsing queries.
+            query_engine: Initialised QueryEngine for collapsing queries.
         """
-        self.quantum_gate = quantum_gate
+        self.query_engine = query_engine
         self._tools: dict[str, ToolRegistration] = {}
         self._running = threading.Event()
         self._lock = threading.RLock()
@@ -208,7 +208,7 @@ class MCPServer:
 
         self.register_tool(
             name="collapse_quantum_memory",
-            handler=self.quantum_gate.collapse,
+            handler=self.query_engine.collapse,
             schema=collapse_schema,
             description=(
                 "Collapse a query into the spectral memory manifold. "
@@ -476,14 +476,14 @@ class MCPServer:
 
 
 def create_server(
-    quantum_gate: QuantumGate,
+    query_engine: QueryEngine,
 ) -> MCPServer:
     """Create and return a configured MCP server instance.
 
     Args:
-        quantum_gate: Initialised QuantumGate instance.
+        query_engine: Initialised QueryEngine instance.
 
     Returns:
         Configured MCPServer ready to run.
     """
-    return MCPServer(quantum_gate=quantum_gate)
+    return MCPServer(query_engine=query_engine)

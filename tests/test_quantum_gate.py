@@ -1,5 +1,5 @@
 # ============================================================================
-# tests/test_quantum_gate.py — Unit tests for the QuantumGate orchestration
+# tests/test_quantum_gate.py — Unit tests for the QueryEngine orchestration
 # ============================================================================
 
 import math
@@ -10,12 +10,12 @@ import pytest
 from math_engine import SeededLSH, sinusoidal_encode
 from knowledge_graph import DeterministicKnowledgeGraph
 from memory_manager import VirtualMemoryTree
-from quantum_gate import QuantumGate, CollapseRequest, CollapseResult
+from query_engine import QueryEngine, CollapseRequest, CollapseResult
 
 
 @pytest.fixture
 def setup_small_graph():
-    """Set up a minimal QuantumGate with a small graph for testing."""
+    """Set up a minimal QueryEngine with a small graph for testing."""
     d_model = 64
     lsh = SeededLSH(d=d_model, w=10.0, m=4, seed=42)
     tree = VirtualMemoryTree(page_size=100, cache_size=50, persist_dir="/tmp/test_qg")
@@ -55,7 +55,7 @@ def setup_small_graph():
         # Run a diffusion to initialise rho
         graph.concept_diffusion(["cat", "animal"], steps=2)
 
-    gate = QuantumGate(tree=tree, graph=graph, lsh=lsh, d_model=d_model)
+    gate = QueryEngine(tree=tree, graph=graph, lsh=lsh, d_model=d_model)
     return gate
 
 
@@ -89,8 +89,8 @@ class TestCollapseModels:
         assert result.error is None
 
 
-class TestQuantumGate:
-    """Tests for the QuantumGate collapse pipeline."""
+class TestQueryEngine:
+    """Tests for the QueryEngine collapse pipeline."""
 
     def test_empty_query_graceful(self, setup_small_graph) -> None:
         """Empty query must return error without exception."""
@@ -139,7 +139,7 @@ class TestQuantumGate:
             graph.build_laplacian()
             graph.concept_diffusion(["test"], steps=1)
 
-        gate = QuantumGate(tree=tree, graph=graph, lsh=lsh, d_model=d_model)
+        gate = QueryEngine(tree=tree, graph=graph, lsh=lsh, d_model=d_model)
 
         # Run 3 trials (reduced from 100 for test speed)
         results = []
@@ -159,7 +159,7 @@ class TestQuantumGate:
         lsh = SeededLSH(d=d_model, w=10.0, m=4, seed=42)
         tree = VirtualMemoryTree(page_size=100, cache_size=10, persist_dir="/tmp/test_empty")
         graph = DeterministicKnowledgeGraph(d_model=d_model)
-        gate = QuantumGate(tree=tree, graph=graph, lsh=lsh, d_model=d_model)
+        gate = QueryEngine(tree=tree, graph=graph, lsh=lsh, d_model=d_model)
 
         result = gate.collapse(query="anything", max_tokens=4096)
         # Should not crash

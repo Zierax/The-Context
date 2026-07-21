@@ -18,7 +18,7 @@ from math_engine import SeededLSH, tokenize, estimate_token_count
 from knowledge_graph import DeterministicKnowledgeGraph
 from memory_manager import VirtualMemoryTree
 from entity_extractor import HeuristicExtractor
-from quantum_gate import QuantumGate
+from query_engine import QueryEngine
 
 logger = structlog.get_logger(__name__)
 
@@ -211,7 +211,7 @@ def synthetic_cross_reference_query(concept: str) -> str:
 
 
 def query_worker(
-    gate: QuantumGate,
+    gate: QueryEngine,
     query: str,
     results: list[dict],
     index: int,
@@ -219,7 +219,7 @@ def query_worker(
     """Worker function for concurrent query execution.
 
     Args:
-        gate: Initialised QuantumGate instance.
+        gate: Initialised QueryEngine instance.
         query: Query string to collapse.
         results: Shared list to append result telemetry.
         index: Worker index for ordering results.
@@ -401,7 +401,7 @@ def main() -> int:
     tree = VirtualMemoryTree(page_size=1000, cache_size=200)
     graph = DeterministicKnowledgeGraph(d_model=d_model)
     extractor = HeuristicExtractor()
-    gate = QuantumGate(tree=tree, graph=graph, lsh=lsh)
+    gate = QueryEngine(tree=tree, graph=graph, lsh=lsh)
 
     # ── Step 2: Generate synthetic corpus ──
     print("  [2/6] Generating synthetic corpus (5,000,000 tokens)...")
@@ -479,7 +479,7 @@ def main() -> int:
     results_lock = threading.Lock()
 
     def safe_worker(
-        gate: QuantumGate,
+        gate: QueryEngine,
         query: str,
         concept: str,
         index: int,
@@ -487,7 +487,7 @@ def main() -> int:
         """Thread-safe wrapper for query worker.
 
         Args:
-            gate: QuantumGate instance.
+            gate: QueryEngine instance.
             query: Query string.
             concept: Expected concept name.
             index: Worker index.

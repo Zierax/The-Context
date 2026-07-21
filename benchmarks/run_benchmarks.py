@@ -35,7 +35,7 @@ from math_engine import (
 from knowledge_graph import DeterministicKnowledgeGraph
 from memory_manager import VirtualMemoryTree
 from entity_extractor import HeuristicExtractor
-from quantum_gate import QuantumGate
+from query_engine import QueryEngine
 
 
 def bench(label):
@@ -172,7 +172,7 @@ with bench("build_laplacian"):
     if len(graph.node_to_idx) >= 2:
         graph.build_laplacian()
 
-gate = QuantumGate(tree=tree, graph=graph, lsh=lsh, d_model=d_model)
+gate = QueryEngine(tree=tree, graph=graph, lsh=lsh, d_model=d_model)
 
 latencies = []
 with bench("100 queries (sequential)"):
@@ -243,7 +243,7 @@ with bench("build_laplacian"):
     if len(graph2.node_to_idx) >= 2:
         graph2.build_laplacian()
 
-gate2 = QuantumGate(tree=tree2, graph=graph2, lsh=lsh2, d_model=d_model)
+gate2 = QueryEngine(tree=tree2, graph=graph2, lsh=lsh2, d_model=d_model)
 
 latencies2 = []
 with bench("100 queries (sequential)"):
@@ -260,7 +260,7 @@ print(f"  Pages ingested: {len(page_ids2)}  Triples: {triple_count2}  Concepts: 
 
 # ─── BENCHMARK 9: Determinism Stress Test ───
 separator("BENCHMARK 9: Determinism Under Load")
-gate_ref = QuantumGate(tree=tree2, graph=graph2, lsh=lsh2, d_model=d_model)
+gate_ref = QueryEngine(tree=tree2, graph=graph2, lsh=lsh2, d_model=d_model)
 query = "quantum memory spectral manifold beacon"
 ref_result = gate_ref.collapse(query=query, max_tokens=4096)
 mismatches = 0
@@ -275,7 +275,7 @@ print(f"  Mismatches: {mismatches}/50  {'PASS' if mismatches == 0 else 'FAIL'}")
 separator("BENCHMARK 10: Concurrent Query Throughput")
 import threading
 
-gate_conc = QuantumGate(tree=tree2, graph=graph2, lsh=lsh2, d_model=d_model)
+gate_conc = QueryEngine(tree=tree2, graph=graph2, lsh=lsh2, d_model=d_model)
 results_lock = threading.Lock()
 conc_results = []
 

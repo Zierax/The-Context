@@ -13,7 +13,7 @@ from math_engine import SeededLSH, tokenize
 from knowledge_graph import DeterministicKnowledgeGraph
 from memory_manager import VirtualMemoryTree
 from entity_extractor import HeuristicExtractor
-from quantum_gate import QuantumGate
+from query_engine import QueryEngine
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -29,7 +29,7 @@ def integration_setup():
     tree = VirtualMemoryTree(page_size=100, cache_size=100, persist_dir="/tmp/int_test")
     graph = DeterministicKnowledgeGraph(d_model=d_model)
     extractor = HeuristicExtractor()
-    gate = QuantumGate(tree=tree, graph=graph, lsh=lsh, d_model=d_model)
+    gate = QueryEngine(tree=tree, graph=graph, lsh=lsh, d_model=d_model)
 
     # Generate synthetic corpus with cross-references
     concept_defs = {
