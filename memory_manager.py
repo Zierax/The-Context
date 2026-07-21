@@ -149,6 +149,9 @@ class VirtualMemoryTree:
             page_id = self._flush_buffer(buffer)
             yield page_id
 
+        # Final flush: compress any remaining pending beacons into B3
+        self._flush_pending_beacons()
+
     def _flush_buffer(self, tokens: list[str]) -> str:
         """Flush a token buffer into a B1 page with embedding.
 
@@ -394,6 +397,121 @@ class VirtualMemoryTree:
             )
             return b3_id
 
+    def _flush_pending_beacons(self) -> None:
+        """Flush remaining pending beacons after ingestion completes.
+
+        Compresses remaining B1→B2 and B2→B3. For partial batches (< 10),
+        compresses with what's available — partial spectral signatures
+        are still better than no hierarchy at all.
+        """
+        # Flush B1 → B2 (no lock — compress_b2 acquires its own)
+        while len(self._pending_b1_for_b2) >= 10:
+            batch = self._pending_b1_for_b2[:10]
+            self._pending_b1_for_b2 = self._pending_b1_for_b2[10:]
+            self.compress_b2(batch)
+        if self._pending_b1_for_b2:
+            batch = list(self._pending_b1_for_b2)
+            self._pending_b1_for_b2 = []
+            if len(batch) >= 2:
+                self.compress_b2_partial(batch)
+
+        # Flush B2 → B3
+        while len(self._pending_b2_for_b3) >= 10:
+            batch = self._pending_b2_for_b3[:10]
+            self._pending_b2_for_b3 = self._pending_b2_for_b3[10:]
+            self.compress_b3(batch)
+        if self._pending_b2_for_b3:
+            batch = list(self._pending_b2_for_b3)
+            self._pending_b2_for_b3 = []
+            if len(batch) >= 2:
+                self.compress_b3_partial(batch)
+
+    def compress_b2_partial(self, b1_beacons: list[str]) -> str:
+        """Compress a partial batch of B1 beacons (< 10) into a B2 patch.
+
+        Same as compress_b2 but accepts any number of beacons >= 2.
+        """
+        if len(b1_beacons) < 2:
+            raise ValueError(f"Need at least 2 B1 beacons, got {len(b1_beacons)}")
+
+        with self._lock:
+            self._b2_counter += 1
+            b2_id = _generate_beacon_id("b2", self._b2_counter)
+
+            vectors_list: list[np.ndarray] = []
+            valid_beacons: list[str] = []
+            for bid in b1_beacons:
+                if bid in self.beacon_b1:
+                    vectors_list.append(self.beacon_b1[bid])
+                    valid_beacons.append(bid)
+
+            if len(vectors_list) < 2:
+                dummy_mu = np.zeros(self._d_model, dtype=np.float16)
+                dummy_sigma = np.eye(self._d_model, dtype=np.float16)
+                self.beacon_b2[b2_id] = (dummy_mu, dummy_sigma)
+                self.b2_to_b1_list[b2_id] = valid_beacons
+                return b2_id
+
+            vecs = np.stack(vectors_list, axis=0)
+            mu = np.mean(vecs, axis=0)
+            centered = vecs - mu[np.newaxis, :]
+            Sigma = (centered.T @ centered) / len(vecs)
+            Sigma_inv = np.linalg.pinv(Sigma.astype(np.float64)).astype(np.float16)
+
+            self.beacon_b2[b2_id] = (mu.astype(np.float16), Sigma_inv)
+            self.b2_to_b1_list[b2_id] = valid_beacons
+            for bid in valid_beacons:
+                self.b1_to_b2[bid] = b2_id
+            self._pending_b2_for_b3.append(b2_id)
+            return b2_id
+
+    def compress_b3_partial(self, b2_beacons: list[str]) -> str:
+        """Compress a partial batch of B2 beacons (< 10) into a B3 signature.
+
+        Same as compress_b3 but accepts any number of beacons >= 2.
+        """
+        if len(b2_beacons) < 2:
+            raise ValueError(f"Need at least 2 B2 beacons, got {len(b2_beacons)}")
+
+        with self._lock:
+            self._b3_counter += 1
+            b3_id = _generate_beacon_id("b3", self._b3_counter)
+
+            vectors_list: list[np.ndarray] = []
+            valid_beacons: list[str] = []
+            for bid in b2_beacons:
+                if bid in self.beacon_b2:
+                    mu, _ = self.beacon_b2[bid]
+                    vectors_list.append(mu.astype(np.float64))
+                    valid_beacons.append(bid)
+
+            if len(vectors_list) < 2:
+                k = min(3, len(vectors_list))
+                dummy_ev = np.zeros(max(k, 1), dtype=np.float64)
+                dummy_evec = np.eye(max(k, 1), dtype=np.float64)
+                self.beacon_b3[b3_id] = (dummy_ev, dummy_evec)
+                self.b3_to_b2_list[b3_id] = valid_beacons
+                for bid in valid_beacons:
+                    self.b2_to_b3[bid] = b3_id
+                return b3_id
+
+            vecs = np.stack(vectors_list, axis=0)
+            sim = vecs @ vecs.T
+            sim = np.maximum(sim, 0.0)
+            np.fill_diagonal(sim, 0.0)
+
+            A_small = sim / (np.max(sim) + 1e-10)
+            A_sparse = sp.csr_matrix(A_small.astype(np.float64))
+
+            k = min(5, len(vectors_list) - 1)
+            eigenvalues, eigenvectors = spectral_signature(A_sparse, k=max(k, 1))
+
+            self.beacon_b3[b3_id] = (eigenvalues, eigenvectors)
+            self.b3_to_b2_list[b3_id] = valid_beacons
+            for bid in valid_beacons:
+                self.b2_to_b3[bid] = b3_id
+            return b3_id
+
     def _compress_pending_b3(self) -> None:
         """Compress all pending B2 beacons into B3 beacons in batch."""
         while len(self._pending_b2_for_b3) >= 10:
@@ -471,16 +589,10 @@ class VirtualMemoryTree:
             if page_id in self.lru_scores:
                 del self.lru_scores[page_id]
 
-            # Clean up beacon mapping if present
-            if page_id in self.page_to_beacon:
-                b1_id = self.page_to_beacon[page_id]
-                # Clean up reverse page map
-                if b1_id in self.b1_to_pages and page_id in self.b1_to_pages[b1_id]:
-                    self.b1_to_pages[b1_id].remove(page_id)
-                    if not self.b1_to_pages[b1_id]:
-                        del self.b1_to_pages[b1_id]
-                # Don't delete the beacon embedding (still needed for queries)
-                del self.page_to_beacon[page_id]
+            # NOTE: page_to_beacon and b1_to_pages are intentionally PRESERVED.
+            # The query pipeline (collapse → expand_b3_to_pages → b1_to_pages)
+            # needs these mappings to discover page IDs, then calls get_page()
+            # which loads from disk. Only the page text is evicted.
 
             logger.debug(
                 "evict_page",

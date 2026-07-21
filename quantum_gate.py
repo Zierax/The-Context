@@ -262,9 +262,26 @@ class QuantumGate:
 
             # STEP 5: Diffuse via Fokker-Planck
             try:
+                # Reset rho to uniform before each query (stateless context engineering)
+                n_nodes = len(self.graph.node_to_idx)
+                if n_nodes > 0:
+                    self.graph.rho = np.ones(n_nodes, dtype=np.float64) / n_nodes
+
                 # Build activation vector from top-10 proximal concepts
                 top_prox_indices = np.argsort(proximities)[-10:]
                 activated_concepts = [candidate_names[i] for i in top_prox_indices]
+
+                # Also activate concepts that share significant tokens with the query
+                query_tokens_set = set(query_tokens)
+                for concept_name in all_concepts:
+                    concept_tokens = set(concept_name.lower().split())
+                    overlap = query_tokens_set & concept_tokens
+                    # If >= 2 query words appear in the concept, activate it
+                    if len(overlap) >= 2 and concept_name not in activated_concepts:
+                        activated_concepts.append(concept_name)
+                    # Also activate if a 4+ char query word is a substring of the concept
+                    elif any(w in concept_name.lower() for w in query_tokens if len(w) >= 4) and concept_name not in activated_concepts:
+                        activated_concepts.append(concept_name)
 
                 # Also add required concepts
                 for rc in req_concepts:
@@ -281,77 +298,80 @@ class QuantumGate:
                     latency_ms=(time.perf_counter() - start_time) * 1000.0,
                 )
 
-            # STEP 6: Rank B3 regions by active mass (using reverse index maps)
-            b3_ids = self.tree.get_all_b3_ids()
-            b3_scores: list[tuple[str, float]] = []
+            # STEP 6: Rank regions by active mass
+            # Try B3 → B2 → B1, fall back to lower levels if hierarchy incomplete
             beacon_to_concepts = self.graph.beacon_to_concepts
-
-            for b3_id in b3_ids:
-                # O(1) reverse index lookups instead of scanning dict items
-                b2_ids_under = self.tree.b3_to_b2_list.get(b3_id, [])
-                # Collect all B1 beacons under this B3
-                b1_ids_under: list[str] = []
-                for b2_id in b2_ids_under:
-                    b1s = self.tree.b2_to_b1_list.get(b2_id, [])
-                    b1_ids_under.extend(b1s)
-
-                # Compute active mass using beacon_to_concepts reverse map
-                # (avoid iterating all concepts looking for which ones match this beacon)
-                active_mass = 0.0
-                for b1_id in b1_ids_under:
-                    concepts_for_beacon = beacon_to_concepts.get(b1_id, [])
-                    for concept in concepts_for_beacon:
-                        if concept in self.graph.node_to_idx:
-                            idx = self.graph.node_to_idx[concept]
-                            active_mass += diffused_rho[idx]
-
-                b3_scores.append((b3_id, active_mass))
-
-            b3_scores.sort(key=lambda x: x[1], reverse=True)
-            top_b3 = b3_scores[:5]  # Top 5 B3 regions
-
-            # STEP 7: Expand top B3 -> B2 -> B1 -> page IDs (using reverse index maps)
             candidate_pages: list[dict] = []
             all_pages_set: set[str] = set()
 
-            for b3_id, _score in top_b3:
-                b2_ids = self.tree.b3_to_b2_list.get(b3_id, [])
-                for b2_id in b2_ids:
-                    b1_ids = self.tree.b2_to_b1_list.get(b2_id, [])
-                    for b1_id in b1_ids:
-                        pages = self.tree.b1_to_pages.get(b1_id, [])
-                        for page_id in pages:
-                            if page_id in all_pages_set:
-                                continue
-                            all_pages_set.add(page_id)
-                            text = self.tree.get_page(page_id)
-                            if text is None:
-                                continue
+            def _expand_beacon_to_pages(b1_id: str) -> list[dict]:
+                """Expand a single B1 beacon to candidate pages."""
+                pages_list = []
+                for page_id in self.tree.b1_to_pages.get(b1_id, []):
+                    if page_id in all_pages_set:
+                        continue
+                    all_pages_set.add(page_id)
+                    text = self.tree.get_page(page_id)
+                    if text is None:
+                        continue
+                    concept_coverage: dict[str, float] = {}
+                    for concept in beacon_to_concepts.get(b1_id, []):
+                        if concept in self.graph.node_to_idx:
+                            idx = self.graph.node_to_idx[concept]
+                            concept_coverage[concept] = float(diffused_rho[idx])
+                    token_count = estimate_token_count(text)
+                    strength = float(
+                        np.mean(diffused_rho) if diffused_rho.size > 0 else 0.0
+                    )
+                    pages_list.append({
+                        "id": page_id,
+                        "text": text,
+                        "token_count": token_count,
+                        "concept_coverage": concept_coverage,
+                        "strength": strength,
+                    })
+                return pages_list
 
-                            # Compute concept coverage using beacon_to_concepts reverse map
-                            # (O(1) per beacon instead of O(concepts) per candidate)
-                            concept_coverage: dict[str, float] = {}
-                            for concept in beacon_to_concepts.get(b1_id, []):
-                                if concept in self.graph.node_to_idx:
-                                    idx = self.graph.node_to_idx[concept]
-                                    concept_coverage[concept] = float(
-                                        diffused_rho[idx]
-                                    )
+            def _rank_beacon_by_concepts(b_id: str) -> float:
+                """Compute active mass for a beacon via beacon_to_concepts."""
+                mass = 0.0
+                for b1_id in self.tree.b2_to_b1_list.get(b_id, []):
+                    for concept in beacon_to_concepts.get(b1_id, []):
+                        if concept in self.graph.node_to_idx:
+                            idx = self.graph.node_to_idx[concept]
+                            mass += diffused_rho[idx]
+                return mass
 
-                            token_count = estimate_token_count(text)
-                            strength = float(
-                                np.mean(diffused_rho)
-                                if diffused_rho.size > 0
-                                else 0.0
-                            )
+            b3_ids = self.tree.get_all_b3_ids()
+            if b3_ids:
+                # Full B3 hierarchy available
+                b3_scores: list[tuple[str, float]] = []
+                for b3_id in b3_ids:
+                    active_mass = _rank_beacon_by_concepts(b3_id)
+                    b3_scores.append((b3_id, active_mass))
+                b3_scores.sort(key=lambda x: x[1], reverse=True)
+                top_b3 = b3_scores[:5]
 
-                            candidate_pages.append({
-                                "id": page_id,
-                                "text": text,
-                                "token_count": token_count,
-                                "concept_coverage": concept_coverage,
-                                "strength": strength,
-                            })
+                for b3_id, _score in top_b3:
+                    b2_ids = self.tree.b3_to_b2_list.get(b3_id, [])
+                    for b2_id in b2_ids:
+                        b1_ids = self.tree.b2_to_b1_list.get(b2_id, [])
+                        for b1_id in b1_ids:
+                            candidate_pages.extend(_expand_beacon_to_pages(b1_id))
+            else:
+                # Fallback: rank B2 beacons directly
+                b2_ids = list(self.tree.beacon_b2.keys())
+                if b2_ids:
+                    b2_scores = [(b2_id, _rank_beacon_by_concepts(b2_id)) for b2_id in b2_ids]
+                    b2_scores.sort(key=lambda x: x[1], reverse=True)
+                    for b2_id, _score in b2_scores[:5]:
+                        b1_ids = self.tree.b2_to_b1_list.get(b2_id, [])
+                        for b1_id in b1_ids:
+                            candidate_pages.extend(_expand_beacon_to_pages(b1_id))
+                else:
+                    # Last resort: expand all B1 beacons
+                    for b1_id in list(self.tree.beacon_b1.keys()):
+                        candidate_pages.extend(_expand_beacon_to_pages(b1_id))
 
             # Include required concepts pages
             if req_concepts:
@@ -381,8 +401,14 @@ class QuantumGate:
                     concepts_activated=activated_concepts,
                 )
 
-            # STEP 8: Submodular pack pages into token budget
+            # STEP 8: Rank candidates by query-specific activation density,
+            # then submodular pack into token budget
             tokens_total = sum(c["token_count"] for c in candidate_pages)
+            # Sort by activation density (sum of concept_rho / token_count)
+            # This ensures the most query-relevant page is prioritized
+            for c in candidate_pages:
+                c["_activation_density"] = sum(c["concept_coverage"].values()) / max(c["token_count"], 1)
+            candidate_pages.sort(key=lambda c: c["_activation_density"], reverse=True)
             selected_ids = submodular_pack(candidate_pages, max_tokens)
 
             # Build result

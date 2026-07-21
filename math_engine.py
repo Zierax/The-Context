@@ -422,9 +422,13 @@ def submodular_pack(
     # Pre-filter candidates that fit in the budget
     valid = [c for c in candidates if c["token_count"] <= budget]
     if not valid:
-        # Return the smallest candidate if even the smallest exceeds budget
-        smallest = min(candidates, key=lambda c: c["token_count"])
-        return [smallest["id"]]
+        # No candidate fits — return the one with highest concept coverage density
+        # (concepts per token), not just the smallest
+        best = max(
+            candidates,
+            key=lambda c: sum(c["concept_coverage"].values()) / max(c["token_count"], 1),
+        )
+        return [best["id"]]
 
     # Precompute per-candidate gains: for each concept, the score contribution
     # Running coverage map: concept -> max weighted score seen so far
@@ -555,12 +559,9 @@ def compute_gaussian_patch(
 def estimate_token_count(text: str) -> int:
     """Estimate the number of tokens in a text string.
 
-    Uses a two-signal heuristic combining word count and character count:
-        tokens ≈ max(word_count × 1.3, char_count ÷ 4)
-
-    The word-count factor (1.3) accounts for BPE subword splitting where
-    some words are split into 2+ tokens. The character-count factor catches
-    cases where whitespace splitting undercounts (e.g., no spaces).
+    For space-separated token lists (as produced by ingest), word count
+    is the most accurate estimate. For free-form text, BPE splitting
+    adds ~30% overhead.
 
     Args:
         text: Input text string.
@@ -572,14 +573,9 @@ def estimate_token_count(text: str) -> int:
         return 1
     words = text.split()
     word_count = len(words)
-    char_count = len(text)
-    # For single-word text, use character-based count (closer to BPE behavior
-    # where short words like "a" or "I" are single tokens).
-    if word_count <= 1:
-        return max(1, char_count // 4)
-    by_words = int(word_count * 1.3) + 1
-    by_chars = max(1, char_count // 4)
-    return max(by_words, by_chars)
+    # Space-separated token lists: word count IS the token count
+    # Free-form text: add ~30% for BPE subword splitting
+    return max(1, int(word_count * 1.1))
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

@@ -101,13 +101,14 @@ class HeuristicExtractor(EntityExtractor):
 
     # Verb phrase pattern: captures [SUBJECT] [VERB] [OBJECT]
     # where subject and object are sequences of words
+    # Increased word limit to 8 for better coverage of real sentences
     TRIPLE_PATTERN = re.compile(
-        r"(\b(?:\w+\s+){0,4}?\w+)\s+"
+        r"(\b(?:\w+\s+){0,8}?\w+)\s+"
         r"(is|are|was|were|has|have|had|contains?|includes?|refers?|"
         r"calls?|depends?|requires?|uses?|defines?|implements?|extends?|"
         r"produces?|creates?|transforms?|computes?|links?|maps?|connects?|"
         r"triggers?|generates?|stores?|retrieves?|processes?)\s+"
-        r"(\b(?:\w+\s+){0,4}?\w+)",
+        r"(\b(?:\w+\s+){0,8}?\w+)",
         re.IGNORECASE,
     )
 
@@ -180,26 +181,48 @@ class HeuristicExtractor(EntityExtractor):
         triples: list[tuple[str, str, str]] = []
         seen: set[tuple[str, str, str]] = set()
 
-        # Method 1: Regex-based SVO extraction
-        for match in self.TRIPLE_PATTERN.finditer(text):
-            subject = self._normalise(match.group(1))
-            verb = self._normalise(match.group(2))
-            obj = self._normalise(match.group(3))
+        # Method 1: Split into sentences and extract SVO from each
+        sentences = self.SENTENCE_PATTERN.findall(text)
+        for sentence in sentences:
+            # Skip sentences that are too long (likely not real sentences)
+            if len(sentence.split()) > 30:
+                continue
+            
+            # Try to find "X verb Y" patterns — split on verb phrase
+            for verb in ["is", "are", "was", "were", "has", "have", "had",
+                         "governs", "combines", "enables", "serves", "consists",
+                         "provides", "uses", "relies", "operates", "stores"]:
+                parts = sentence.split(f" {verb} ", 1)
+                if len(parts) == 2:
+                    subject = self._normalise(parts[0])
+                    obj = self._normalise(parts[1])
+                    
+                    # Clean up subject (remove leading articles)
+                    subject_words = subject.split()
+                    if subject_words and subject_words[0] in {"the", "a", "an", "this", "that", "it", "they", "we"}:
+                        subject = " ".join(subject_words[1:])
+                    
+                    # Clean up object (remove trailing clauses, limit to 5 words)
+                    obj_words = obj.split()
+                    if len(obj_words) > 5:
+                        obj = " ".join(obj_words[:5])
+                    
+                    # Remove trailing punctuation
+                    obj = obj.rstrip(".,;:!?")
+                    
+                    if not subject or not obj:
+                        continue
+                    if not self._is_valid_concept(subject) or not self._is_valid_concept(obj):
+                        continue
+                    if subject in {"the", "a", "an", "this", "that", "it", "they", "we"}:
+                        continue
+                    if obj in {"the", "a", "an", "this", "that", "it", "they", "we"}:
+                        continue
 
-            if not subject or not verb or not obj:
-                continue
-            if not self._is_valid_concept(subject) or not self._is_valid_concept(obj):
-                continue
-            # Skip trivial/stopword-only subjects and objects
-            if subject in {"the", "a", "an", "this", "that", "it", "they", "we"}:
-                continue
-            if obj in {"the", "a", "an", "this", "that", "it", "they", "we"}:
-                continue
-
-            triple = (subject, verb, obj)
-            if triple not in seen:
-                seen.add(triple)
-                triples.append(triple)
+                    triple = (subject, verb, obj)
+                    if triple not in seen:
+                        seen.add(triple)
+                        triples.append(triple)
 
         # Method 2: Handle "X of Y" patterns (e.g., "definition of X")
         of_pattern = re.compile(
