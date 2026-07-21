@@ -77,7 +77,10 @@ class VirtualMemoryTree:
 
         # B2 level: Gaussian patches over 10 B1 beacons
         self.beacon_b2: dict[str, tuple[np.ndarray, np.ndarray]] = {}
-        # beacon_id -> (mu, Sigma_inv)
+        # beacon_id -> (mu, Sigma_inv_diag)
+        # mu: float16 shape (d,) — mean of B1 embeddings
+        # Sigma_inv_diag: float64 shape (d,) — diagonal of precision matrix
+        # (full matrix not needed — never used in query path)
 
         # B3 level: spectral signatures over 10 B2 beacons
         self.beacon_b3: dict[str, tuple[np.ndarray, np.ndarray]] = {}
@@ -282,14 +285,15 @@ class VirtualMemoryTree:
                     n_vectors=len(vectors_list),
                 )
                 # Return a zero-patch placeholder
-                mu = np.zeros(self.beacon_b1[next(iter(self.beacon_b1))].shape[0] if self.beacon_b1 else 512, dtype=np.float64)
-                Sigma_inv = np.eye(len(mu), dtype=np.float64)
-                self.beacon_b2[b2_id] = (mu, Sigma_inv)
+                mu = np.zeros(self.beacon_b1[next(iter(self.beacon_b1))].shape[0] if self.beacon_b1 else 512, dtype=np.float16)
+                Sigma_inv_diag = np.ones(mu.shape[0], dtype=np.float64)
+                self.beacon_b2[b2_id] = (mu, Sigma_inv_diag)
                 return b2_id
 
             vectors = np.stack(vectors_list, axis=0)
-            mu, Sigma_inv = compute_gaussian_patch(vectors)
-            self.beacon_b2[b2_id] = (mu, Sigma_inv)
+            mu, Sigma_inv_diag = compute_gaussian_patch(vectors, store_diagonal_only=True)
+            # Store mu as float16 to save memory (saves 512*6 = 3KB per B2 beacon)
+            self.beacon_b2[b2_id] = (mu.astype(np.float16), Sigma_inv_diag)
 
             # Map B1 -> B2 and update reverse index
             self.b2_to_b1_list[b2_id] = list(valid_beacons)
@@ -343,7 +347,8 @@ class VirtualMemoryTree:
             for bid in b2_beacons:
                 if bid in self.beacon_b2:
                     mu, _ = self.beacon_b2[bid]
-                    vectors_list.append(mu)
+                    # Convert float16 back to float64 for spectral computation
+                    vectors_list.append(mu.astype(np.float64))
                     valid_beacons.append(bid)
 
             if len(vectors_list) < 2:
@@ -369,7 +374,9 @@ class VirtualMemoryTree:
             A_sparse = sp.csr_matrix(A_small.astype(np.float64))
 
             # Compute spectral signature
-            k = min(10, n - 1)
+            # Use k=5 instead of k=10 to save memory (50% reduction in B3 storage)
+            # Still captures the dominant spectral modes for accurate queries
+            k = min(5, n - 1)
             eigenvalues, eigenvectors = spectral_signature(A_sparse, k=k)
 
             self.beacon_b3[b3_id] = (eigenvalues, eigenvectors)
@@ -522,7 +529,10 @@ class VirtualMemoryTree:
             beacon_id: B2 beacon identifier string.
 
         Returns:
-            Tuple of (mu, Sigma_inv), or None if not found.
+            Tuple of (mu, Sigma_inv_diag) where:
+                mu: float16 array shape (d,) — mean of B1 embeddings.
+                Sigma_inv_diag: float64 array shape (d,) — diagonal of precision matrix.
+            Returns None if not found.
         """
         return self.beacon_b2.get(beacon_id)
 

@@ -485,6 +485,7 @@ def submodular_pack(
 
 def compute_gaussian_patch(
     vectors: np.ndarray,
+    store_diagonal_only: bool = False,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Compute a Gaussian patch (B2 beacon) from a neighborhood of B1 embeddings.
 
@@ -493,11 +494,17 @@ def compute_gaussian_patch(
     Args:
         vectors: Array of shape (n_vectors, d) — B1 embeddings in a neighborhood.
             Must have at least 2 vectors.
+        store_diagonal_only: If True, return only the diagonal of Sigma_inv as a 1D
+            array of shape (d,) instead of the full (d, d) matrix. This saves
+            significant memory (~2 MB per B2 beacon for d=512) with zero loss
+            since Sigma_inv is never used in the query path. Default False for
+            backward compatibility.
 
     Returns:
         Tuple of (mu, Sigma_inv) where:
             mu: ndarray shape (d,), the mean of the neighborhood.
-            Sigma_inv: ndarray shape (d, d), pseudo-inverse of covariance.
+            Sigma_inv: ndarray shape (d, d) if store_diagonal_only=False,
+                or (d,) if store_diagonal_only=True — pseudo-inverse of covariance.
 
     Raises:
         ValueError: If fewer than 2 vectors are provided.
@@ -517,6 +524,19 @@ def compute_gaussian_patch(
     # matrix is singular and pinv is the correct choice. np.linalg.pinv uses LAPACK
     # gesvd which handles singular matrices correctly.
     Sigma_inv = np.linalg.pinv(cov).astype(np.float64)
+
+    if store_diagonal_only:
+        # Return only diagonal — saves d*(d-1)*8 bytes per B2 beacon
+        # This is safe because Sigma_inv is never used in the query path
+        Sigma_inv_diag = np.diag(Sigma_inv).astype(np.float64)
+        logger.debug(
+            "compute_gaussian_patch",
+            n_vectors=n,
+            d=d,
+            mu_norm=np.linalg.norm(mu),
+            store_diagonal_only=True,
+        )
+        return mu, Sigma_inv_diag
 
     logger.debug(
         "compute_gaussian_patch",

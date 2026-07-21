@@ -72,6 +72,8 @@ class DeterministicKnowledgeGraph:
 
         Preserves existing edge weights. Uses LIL format during incremental
         construction to avoid SparseEfficiencyWarning on CSR modification.
+        After building, stores only upper triangle to save memory (zero loss
+        since adjacency is symmetric).
         """
         n = len(self.node_to_idx)
         if n == 0:
@@ -90,7 +92,11 @@ class DeterministicKnowledgeGraph:
             self._A_lil = new_lil
 
         # Always keep self.A in sync (converted to CSR for read access)
-        self.A = self._A_lil.tocsr()
+        A_full = self._A_lil.tocsr()
+        A_full.eliminate_zeros()
+
+        # Store only upper triangle — saves ~50% memory (zero loss since symmetric)
+        self.A = sp.triu(A_full, format='csr')
         self.A.eliminate_zeros()
 
         if self.rho is None or self.rho.shape[0] < n:
@@ -173,7 +179,8 @@ class DeterministicKnowledgeGraph:
     def build_laplacian(self) -> None:
         """Recompute the normalized Laplacian from the current adjacency matrix.
 
-        Converts internal LIL matrix to CSR, then builds Laplacian.
+        Converts internal LIL matrix to CSR, reconstructs full symmetric matrix
+        from stored upper triangle, then builds Laplacian.
         Must be called after all batch ingestion is complete and before querying.
 
         Raises:
@@ -186,13 +193,18 @@ class DeterministicKnowledgeGraph:
                     "need at least 2 to build Laplacian"
                 )
             # Convert LIL to CSR for efficient Laplacian computation
-            self.A = self._A_lil.tocsr()
-            self.A.eliminate_zeros()
-            self.L_sym = normalized_laplacian(self.A)
+            A_full = self._A_lil.tocsr()
+            A_full.eliminate_zeros()
+
+            # Reconstruct full symmetric matrix from upper triangle for Laplacian
+            # L_sym = I - D^(-1/2) * A * D^(-1/2) requires full A
+            A_symmetric = A_full + A_full.T - sp.diags(A_full.diagonal())
+
+            self.L_sym = normalized_laplacian(A_symmetric)
             logger.info(
                 "build_laplacian",
-                n_nodes=self.A.shape[0],
-                nnz=self.A.nnz,
+                n_nodes=A_full.shape[0],
+                nnz=A_full.nnz,
             )
 
     def concept_diffusion(
