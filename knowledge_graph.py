@@ -244,19 +244,17 @@ class DeterministicKnowledgeGraph:
                     found_any = True
 
             if not found_any:
-                # Fuzzy fallback: match query words against concept substrings
+                # Fuzzy fallback: match query words against concept words (exact match)
                 query_words = set()
                 for concept in query_concepts:
                     query_words.update(concept.lower().split())
                 for concept_name, idx in self.node_to_idx.items():
-                    concept_lower = concept_name.lower()
-                    for qw_group in query_words:
-                        # Check if any query word is a substring of the concept
-                        for w in qw_group:
-                            if w in concept_lower and len(w) >= 3:
-                                q[idx] = 0.5  # Partial activation
-                                found_any = True
-                                break
+                    concept_words = set(concept_name.lower().split())
+                    overlap = query_words & concept_words
+                    # Activate if >= 1 query word exactly matches a concept word (3+ chars)
+                    if any(len(w) >= 3 for w in overlap):
+                        q[idx] = 0.5  # Partial activation
+                        found_any = True
 
             if not found_any:
                 logger.warning(

@@ -265,7 +265,7 @@ class QueryEngine:
                 top_prox_indices = np.argsort(proximities)[-10:]
                 activated_concepts = [candidate_names[i] for i in top_prox_indices]
 
-                # Also activate concepts that share significant tokens with the query
+                # Also activate concepts that share exact tokens with the query
                 query_tokens_set = set(query_tokens)
                 for concept_name in all_concepts:
                     concept_tokens = set(concept_name.lower().split())
@@ -273,8 +273,8 @@ class QueryEngine:
                     # If >= 2 query words appear in the concept, activate it
                     if len(overlap) >= 2 and concept_name not in activated_concepts:
                         activated_concepts.append(concept_name)
-                    # Also activate if a 4+ char query word is a substring of the concept
-                    elif any(w in concept_name.lower() for w in query_tokens if len(w) >= 4) and concept_name not in activated_concepts:
+                    # Also activate if a query word exactly matches a concept word (4+ chars)
+                    elif any(w in concept_tokens for w in query_tokens if len(w) >= 4) and concept_name not in activated_concepts:
                         activated_concepts.append(concept_name)
 
                 # Also add required concepts

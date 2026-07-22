@@ -101,7 +101,7 @@ class HeuristicExtractor(EntityExtractor):
 
     # Verb phrase pattern: captures [SUBJECT] [VERB] [OBJECT]
     # where subject and object are sequences of words
-    # Increased word limit to 8 for better coverage of real sentences
+    # Kept word limit at 8 for precision; expanded verb list
     TRIPLE_PATTERN = re.compile(
         r"(\b(?:\w+\s+){0,8}?\w+)\s+"
         r"(is|are|was|were|has|have|had|contains?|includes?|refers?|"

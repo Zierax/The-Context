@@ -180,17 +180,19 @@ def build_adversarial_corpus(
 
     Example: Correct: "The capital of France is Paris"
              Distractor: "The capital of Germany is Paris" (wrong!)
+    Facts are separated by distractor text so they land on different pages.
     """
     random.seed(seed)
     np.random.seed(seed)
 
     facts = []
     corpus = []
-    segment_size = distractor_tokens // (num_facts * 2 + 1)
+    # Split distractor evenly: before fact, between correct and distractor, after
+    third = distractor_tokens // 3
 
     for fact_id in range(num_facts):
-        # Add distractor segment
-        distractor = generate_distractor(segment_size)
+        # Add distractor before the correct fact
+        distractor = generate_distractor(third)
         corpus.extend(distractor.split())
 
         # Correct fact
@@ -200,10 +202,18 @@ def build_adversarial_corpus(
         correct = f"The capital of {countries[idx]} is {capitals[idx]}."
         corpus.extend(correct.split())
 
+        # Add distractor BETWEEN correct and distractor (ensures different pages)
+        distractor2 = generate_distractor(third)
+        corpus.extend(distractor2.split())
+
         # Adversarial distractor (similar structure, wrong answer)
         wrong_idx = (idx + 1) % len(countries)
         distractor_fact = f"The capital of {countries[wrong_idx]} is {capitals[idx]}."
         corpus.extend(distractor_fact.split())
+
+        # Add distractor after
+        distractor3 = generate_distractor(third)
+        corpus.extend(distractor3.split())
 
         facts.append({
             "fact_id": fact_id,
