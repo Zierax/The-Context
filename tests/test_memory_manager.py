@@ -9,7 +9,7 @@ from collections import OrderedDict
 import numpy as np
 import pytest
 
-from memory_manager import VirtualMemoryTree
+from the_context.core import VirtualMemoryTree
 
 
 class TestVirtualMemoryTree:

@@ -16,11 +16,11 @@ structlog.configure(wrapper_class=structlog.make_filtering_bound_logger(40))
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from math_engine import SeededLSH, compute_gaussian_patch
-from knowledge_graph import DeterministicKnowledgeGraph
-from memory_manager import VirtualMemoryTree
-from entity_extractor import HeuristicExtractor
-from query_engine import QueryEngine
+from the_context.core import SeededLSH, compute_gaussian_patch
+from the_context.core import DeterministicKnowledgeGraph
+from the_context.core import VirtualMemoryTree
+from the_context.extraction import HeuristicExtractor
+from the_context.query import QueryEngine
 
 
 def generate_corpus(n_tokens, seed=42):

@@ -2,7 +2,7 @@
   "single_needle": {
     "task": "single_needle",
     "accuracy": 1.0,
-    "query_ms": 2.7735429999893313,
+    "query_ms": 2.510551999876043,
     "memory_bytes": 95726,
     "text_bytes": 81635,
     "compression_ratio": 0.8527986127071016
@@ -14,7 +14,7 @@
     "total": 5,
     "pages_returned": 3,
     "tokens_used": 3300,
-    "query_ms": 4.610387000013816,
+    "query_ms": 2.387765999628755,
     "memory_bytes": 95833,
     "text_bytes": 81720,
     "compression_ratio": 0.8527334008118289
@@ -22,7 +22,7 @@
   "multi_hop": {
     "task": "multi_hop",
     "accuracy": 1.0,
-    "query_ms": 6.310239000015372,
+    "query_ms": 4.857516999436484,
     "memory_bytes": 86480,
     "text_bytes": 73602,
     "compression_ratio": 0.8510869565217392
@@ -32,7 +32,7 @@
     "clean_accuracy": 0.2,
     "any_accuracy": 0.4,
     "distractor_rate": 0.2,
-    "query_ms": 27.606579000007514,
+    "query_ms": 16.249174999757088,
     "memory_bytes": 477455,
     "text_bytes": 407555,
     "compression_ratio": 0.853598768470327

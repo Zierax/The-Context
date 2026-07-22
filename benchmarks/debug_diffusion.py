@@ -2,8 +2,8 @@
 import sys, os, warnings, numpy as np
 warnings.filterwarnings('ignore')
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from knowledge_graph import DeterministicKnowledgeGraph
-from entity_extractor import HeuristicExtractor
+from the_context.core import DeterministicKnowledgeGraph
+from the_context.extraction import HeuristicExtractor
 
 graph = DeterministicKnowledgeGraph(d_model=128)
 ext = HeuristicExtractor()

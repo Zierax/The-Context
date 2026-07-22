@@ -8,7 +8,7 @@ import numpy as np
 import scipy.sparse as sp
 import pytest
 
-from math_engine import (
+from the_context.core import (
     sinusoidal_encode,
     SeededLSH,
     normalized_laplacian,

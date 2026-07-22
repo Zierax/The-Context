@@ -6,11 +6,11 @@ warnings.filterwarnings('ignore')
 import structlog
 structlog.configure(wrapper_class=structlog.make_filtering_bound_logger(40))
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from memory_manager import VirtualMemoryTree
-from query_engine import QueryEngine
-from knowledge_graph import DeterministicKnowledgeGraph
-from entity_extractor import HeuristicExtractor
-from math_engine import SeededLSH, sinusoidal_encode, estimate_token_count
+from the_context.core import VirtualMemoryTree
+from the_context.query import QueryEngine
+from the_context.core import DeterministicKnowledgeGraph
+from the_context.extraction import HeuristicExtractor
+from the_context.core import SeededLSH, sinusoidal_encode, estimate_token_count
 
 # Build same corpus as topic_test
 topics = {
@@ -53,7 +53,7 @@ gate = QueryEngine(tree=tree, graph=graph, lsh=lsh, d_model=d)
 gate._ensure_caches()
 
 # Simulate what collapse does
-from math_engine import sinusoidal_encode
+from the_context.core import sinusoidal_encode
 query = "What is quantum memory?"
 query_tokens = query.lower().split()
 query_embedding = sinusoidal_encode(query_tokens, d_model=d)

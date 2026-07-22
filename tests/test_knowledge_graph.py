@@ -9,7 +9,7 @@ import numpy as np
 import scipy.sparse as sp
 import pytest
 
-from knowledge_graph import DeterministicKnowledgeGraph
+from the_context.core import DeterministicKnowledgeGraph
 
 
 class TestDeterministicKnowledgeGraph:

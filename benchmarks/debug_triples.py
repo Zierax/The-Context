@@ -5,8 +5,8 @@ warnings.filterwarnings('ignore')
 import structlog
 structlog.configure(wrapper_class=structlog.make_filtering_bound_logger(40))
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from memory_manager import VirtualMemoryTree
-from entity_extractor import HeuristicExtractor
+from the_context.core import VirtualMemoryTree
+from the_context.extraction import HeuristicExtractor
 
 print("=" * 70)
 print("  DEBUG: Triple Extraction Per Page")

@@ -13,10 +13,10 @@ import scipy.sparse as sp
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from math_engine import SeededLSH, sinusoidal_encode, normalized_laplacian
-from knowledge_graph import DeterministicKnowledgeGraph
-from memory_manager import VirtualMemoryTree
-from entity_extractor import HeuristicExtractor
+from the_context.core import SeededLSH, sinusoidal_encode, normalized_laplacian
+from the_context.core import DeterministicKnowledgeGraph
+from the_context.core import VirtualMemoryTree
+from the_context.extraction import HeuristicExtractor
 
 def measure_memory(label: str) -> None:
     """Print current memory usage."""

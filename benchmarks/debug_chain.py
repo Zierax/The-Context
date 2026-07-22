@@ -6,8 +6,8 @@ warnings.filterwarnings('ignore')
 import structlog
 structlog.configure(wrapper_class=structlog.make_filtering_bound_logger(40))
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from memory_manager import VirtualMemoryTree
-from math_engine import SeededLSH
+from the_context.core import VirtualMemoryTree
+from the_context.core import SeededLSH
 
 persist = tempfile.mkdtemp()
 tree = VirtualMemoryTree(page_size=1000, cache_size=10, persist_dir=persist)

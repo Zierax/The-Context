@@ -13,7 +13,7 @@ import numpy as np
 import scipy.sparse as sp
 import structlog
 
-from math_engine import (
+from the_context.core.math_engine import (
     compute_gaussian_patch,
     spectral_signature,
     normalized_laplacian,

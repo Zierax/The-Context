@@ -14,11 +14,11 @@ from typing import Iterator
 import numpy as np
 import structlog
 
-from math_engine import SeededLSH, tokenize, estimate_token_count
-from knowledge_graph import DeterministicKnowledgeGraph
-from memory_manager import VirtualMemoryTree
-from entity_extractor import HeuristicExtractor
-from query_engine import QueryEngine
+from the_context.core.math_engine import SeededLSH, tokenize, estimate_token_count
+from the_context.core.knowledge_graph import DeterministicKnowledgeGraph
+from the_context.core.memory_manager import VirtualMemoryTree
+from the_context.extraction.entity_extractor import HeuristicExtractor
+from the_context.query.query_engine import QueryEngine
 
 logger = structlog.get_logger(__name__)
 

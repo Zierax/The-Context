@@ -16,7 +16,7 @@ from typing import Any, Callable
 import structlog
 from pydantic import BaseModel, Field, ValidationError
 
-from query_engine import QueryEngine, CollapseRequest, CollapseResult
+from the_context.query.query_engine import QueryEngine, CollapseRequest, CollapseResult
 
 logger = structlog.get_logger(__name__)
 

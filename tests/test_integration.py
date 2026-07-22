@@ -9,11 +9,11 @@ import threading
 import numpy as np
 import pytest
 
-from math_engine import SeededLSH, tokenize
-from knowledge_graph import DeterministicKnowledgeGraph
-from memory_manager import VirtualMemoryTree
-from entity_extractor import HeuristicExtractor
-from query_engine import QueryEngine
+from the_context.core import SeededLSH, tokenize
+from the_context.core import DeterministicKnowledgeGraph
+from the_context.core import VirtualMemoryTree
+from the_context.extraction import HeuristicExtractor
+from the_context.query import QueryEngine
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

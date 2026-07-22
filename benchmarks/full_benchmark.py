@@ -20,16 +20,16 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from math_engine import (
+from the_context.core import (
     SeededLSH,
     sinusoidal_encode,
     compute_gaussian_patch,
     estimate_token_count,
 )
-from knowledge_graph import DeterministicKnowledgeGraph
-from memory_manager import VirtualMemoryTree
-from entity_extractor import HeuristicExtractor
-from query_engine import QueryEngine
+from the_context.core import DeterministicKnowledgeGraph
+from the_context.core import VirtualMemoryTree
+from the_context.extraction import HeuristicExtractor
+from the_context.query import QueryEngine
 
 
 def separator(title):

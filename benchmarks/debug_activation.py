@@ -4,11 +4,11 @@ warnings.filterwarnings('ignore')
 import structlog
 structlog.configure(wrapper_class=structlog.make_filtering_bound_logger(40))
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from memory_manager import VirtualMemoryTree
-from query_engine import QueryEngine
-from knowledge_graph import DeterministicKnowledgeGraph
-from entity_extractor import HeuristicExtractor
-from math_engine import SeededLSH, sinusoidal_encode
+from the_context.core import VirtualMemoryTree
+from the_context.query import QueryEngine
+from the_context.core import DeterministicKnowledgeGraph
+from the_context.extraction import HeuristicExtractor
+from the_context.core import SeededLSH, sinusoidal_encode
 
 topics = {
     "quantum_memory": "Quantum memory is a spectral manifold representation of knowledge that encodes information in the eigenvalues of a graph Laplacian. It enables deterministic retrieval through hierarchical beacon compression.",

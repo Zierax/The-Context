@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from entity_extractor import HeuristicExtractor
+from the_context.extraction import HeuristicExtractor
 ext = HeuristicExtractor()
 
 texts = [

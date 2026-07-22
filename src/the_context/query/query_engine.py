@@ -14,15 +14,15 @@ from pydantic import BaseModel, Field
 
 import scipy.sparse as sp
 
-from math_engine import (
+from the_context.core.math_engine import (
     SeededLSH,
     sinusoidal_encode,
     submodular_pack,
     estimate_token_count,
     fokker_planck_step,
 )
-from knowledge_graph import DeterministicKnowledgeGraph
-from memory_manager import VirtualMemoryTree
+from the_context.core.knowledge_graph import DeterministicKnowledgeGraph
+from the_context.core.memory_manager import VirtualMemoryTree
 
 logger = structlog.get_logger(__name__)
 

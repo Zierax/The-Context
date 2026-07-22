@@ -13,7 +13,7 @@ import numpy as np
 import scipy.sparse as sp
 import structlog
 
-from math_engine import (
+from the_context.core.math_engine import (
     normalized_laplacian,
     fokker_planck_step,
     sinusoidal_encode,
