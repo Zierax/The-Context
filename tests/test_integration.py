@@ -22,11 +22,12 @@ from the_context.query import QueryEngine
 
 
 @pytest.fixture(scope="module")
-def integration_setup():
+def integration_setup(tmp_path_factory):
     """Create a full pipeline with a small synthetic corpus for integration testing."""
     d_model = 64
     lsh = SeededLSH(d=d_model, w=10.0, m=4, seed=42)
-    tree = VirtualMemoryTree(page_size=100, cache_size=100, persist_dir="/tmp/int_test")
+    persist_dir = str(tmp_path_factory.mktemp("int_test"))
+    tree = VirtualMemoryTree(page_size=100, cache_size=100, persist_dir=persist_dir)
     graph = DeterministicKnowledgeGraph(d_model=d_model)
     extractor = HeuristicExtractor()
     gate = QueryEngine(tree=tree, graph=graph, lsh=lsh, d_model=d_model)

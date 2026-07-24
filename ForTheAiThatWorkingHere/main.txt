@@ -1,0 +1,539 @@
+# AI系统指令文件 — The Context: Spectral Memory Manifold Co-Processor
+
+**重要：此文件是AI在这个项目中的核心指令。每次开始工作前必须阅读。**
+**重要：用户偏好reverse engineering——看你提出的建议，从中选很多来执行。第一轮多做事，保持连续工作不要中断。**
+
+---
+
+## 用户语言偏好
+- **聊天语言**：阿拉伯语（埃及方言）为主，英语也可
+- **代码/文档/注释**：全部用英语。不要在代码中写其他语言。
+- **文件修改请求**：用户要求修改文件时，先请求确认，问清楚要改什么。
+
+---
+
+## 系统角色定义
+
+**零占位符**：永远不要用"// ... existing code ..."或"// TODO: implement"。如果引用现有结构，提供完整上下文。如果做不到，要求用户提供缺失的上下文。
+
+**零捷径**：不要缩写逻辑。不要省略错误处理、边界验证或健壮日志。每一行必须是生产加固的。
+
+**零演示代码**：永远不要提供"简化版"或"演示版"。写代码要像在高安全、高性能生产环境中一样。
+
+**确定性逻辑**：确保所有代码是确定性的。如果模块需要外部依赖，包含正确的配置、类型定义和安全头。
+
+**严格正确性**：如果检测到逻辑矛盾或风险模式，立即标记。不要在指令模糊时继续——先要求澄清。
+
+**零懒惰**：不要总结。不要跳过样板。不要提供"伪代码"。每个输出必须完全功能、语法正确、可部署。
+
+**错误处理**：假设"快乐路径"是神话。每个函数必须有全面的防御编程、输入清理和优雅失败处理。
+
+**角色**：精英深度技术系统架构师、首席研究科学家、第一性原理思维的激进实践者。
+
+### 工作风格
+- **用户偏好reverse engineering**：看你提出的建议，从中选很多来执行
+- **第一轮多做事**：保持连续工作不要中断
+- **修改文件前请求确认**
+- **零妥协**：生产就绪代码，不是演示
+
+---
+
+## 项目概览
+
+- **项目名**：The Context — Spectral Memory Manifold Co-Processor
+- **使命**：构建一个超越所有现有系统（Cognee, MemGPT, GraphRAG, Graphify, Mem0, Zep, Hindsight, Activation Beacon）的LLM上下文记忆系统
+- **核心理念**：将所有知识存储在光谱记忆流形上，通过分层信标层级（B1→B2→B3）实现确定性检索
+- **当前版本**：v0.2-alpha（src/ layout重构后）
+- **GitHub**：https://github.com/Zierax/The-Context
+- **标签**：v0.1-beta, v0.1.1
+- **许可证**：MIT
+- **作者**：Zierax
+- **语言**：Python 3.10+
+- **技术栈**：纯NumPy/SciPy，零外部ML API，零FAISS/HNSW，零asyncio
+- **确定性保证**：相同输入+相同状态=bit-for-bit相同输出
+- **最后更新**：2026年7月
+
+---
+
+## 完整文件清单
+
+### 源代码 (src/the_context/)
+
+| 文件 | 行数 | 职责 |
+|------|------|------|
+| `__init__.py` | 4行 | 顶层包导出 |
+| `main.py` | 500行 | E2E管道入口点：初始化、合成语料库、并发查询 |
+| `mcp_server.py` | 409行 | JSON-RPC 2.0 MCP服务器，stdio同步协议 |
+
+### 核心模块 (src/the_context/core/)
+
+| 文件 | 行数 | 职责 |
+|------|------|------|
+| `__init__.py` | 8行 | 导出math_engine, knowledge_graph, memory_manager |
+| `math_engine.py` | 472行 | 所有数学操作：sinusoidal编码、LSH、拉普拉斯、Fokker-Planck、子模块包装、高斯补丁 |
+| `knowledge_graph.py` | 375行 | 确定性知识图谱：CSR邻接矩阵、拉普拉斯、扩散、概念-信标映射 |
+| `memory_manager.py` | 633行 | 虚拟内存树：B1→B2→B3信标压缩、LRU驱逐、磁盘持久化 |
+| `semantic_compressor.py` | 720行 | 语义压缩引擎：自然语言→知识压缩 |
+
+### 查询模块 (src/the_context/query/)
+
+| 文件 | 行数 | 职责 |
+|------|------|------|
+| `__init__.py` | 1行 | 导出QueryEngine, CollapseRequest, CollapseResult |
+| `query_engine.py` | 405行 | 查询管道编排：嵌入→LSH→扩散→B3→B2→B1→子模块包装 |
+
+### 提取模块 (src/the_context/extraction/)
+
+| 文件 | 行数 | 职责 |
+|------|------|------|
+| `__init__.py` | 1行 | 导出HeuristicExtractor |
+| `entity_extractor.py` | 207行 | 确定性SVO提取：正则表达式模式匹配，无spaCy依赖 |
+
+### 嵌入模块 (src/the_context/embedding/)
+
+| 文件 | 行数 | 职责 |
+|------|------|------|
+| `__init__.py` | 0行 | 空模块（预留） |
+
+### 测试 (tests/)
+
+| 文件 | 行数 | 职责 |
+|------|------|------|
+| `__init__.py` | 1行 | 测试包 |
+| `test_math_engine.py` | 385行 | 嵌入、LSH、拉普拉斯、Fokker-Planck、子模块、谱分解测试 |
+| `test_knowledge_graph.py` | 147行 | 三元组添加、扩散、持久化测试 |
+| `test_memory_manager.py` | 137行 | 摄入、LRU驱逐、磁盘溢出、B2/B3压缩测试 |
+| `test_quantum_gate.py` | 165行 | 坍缩确定性、交叉引用检索、错误处理测试 |
+| `test_integration.py` | 170行 | E2E管道、并发查询、性能门测试 |
+
+### 基准测试 (benchmarks/)
+
+| 文件 | 行数 | 职责 |
+|------|------|------|
+| `ruler_bench.py` | 456行 | **主要基准**：RULER风格基准套件（单针、多针、多跳、对抗） |
+| `run_benchmarks.py` | 256行 | 10个硬基准套件运行器 |
+| `full_benchmark.py` | 311行 | 完整管道基准（50K/200K tokens） |
+| `quick_benchmark.py` | 217行 | 快速性能测试 |
+| `memory_benchmark.py` | 181行 | 内存使用分析 |
+| `projection_bench.py` | 153行 | 25M token投射基准 |
+| `one_m_baseline.py` | 129行 | 1M token基线测试 |
+| `quick_context_test.py` | 165行 | 上下文工程快速测试 |
+| `context_engineering_demo.py` | 138行 | 上下文工程演示 |
+| `context_engineering_v2.py` | 154行 | 上下文工程v2 |
+| `topic_test.py` | 84行 | 主题测试 |
+| `mini_bench.py` | 85行 | 小型基准 |
+| `debug_activation.py` | 68行 | 调试：概念激活 |
+| `debug_beacon_concepts.py` | 66行 | 调试：信标概念 |
+| `debug_chain.py` | 31行 | 调试：链式操作 |
+| `debug_diffusion.py` | 27行 | 调试：扩散 |
+| `debug_query.py` | 122行 | 调试：查询管道 |
+| `debug_submodular.py` | 78行 | 调试：子模块包装 |
+| `debug_triples.py` | 54行 | 调试：三元组提取 |
+| `test_extractor.py` | 16行 | 提取器测试 |
+
+### 文档和配置
+
+| 文件 | 行数 | 职责 |
+|------|------|------|
+| `base.txt` | 671行 | **原始规范文档**：完整架构和实现规格 |
+| `README.md` | 123行 | 项目概述、快速开始 |
+| `OVERVIEW.md` | 907行 | 详细数学基础、架构、公式、性能结果 |
+| `requirements.txt` | 27行 | 依赖清单（版本锁定） |
+| `docs/ARCHITECTURE.md` | 230行 | 详细架构文档 |
+| `docs/BENCHMARKS.md` | 92行 | 基准套件文档 |
+| `results/RESULTS.md` | 152行 | 当前结果和优化历史 |
+| `results/ruler_benchmark.json` | 40行 | RULER基准诚实结果 |
+
+### 数据目录
+
+| 目录 | 职责 |
+|------|------|
+| `.context/pages/` | 驱逐页面存储（磁盘支持） |
+| `results/` | 基准测试结果 |
+| `docs/` | 架构和基准文档 |
+
+---
+
+## 架构详解
+
+### 核心架构模式
+
+**分层信标记忆系统** — 三级压缩层级，通过知识图谱路由查询。
+
+```
+B1 (1000 tokens)  →  B2 (10 B1s)  →  B3 (10 B2s)
+  切线向量              高斯补丁         谱签名
+  128-d float16        128-d mu + Sigma  5 eigenvalues + 5 vectors
+```
+
+### 数据流
+
+#### 摄入管道（写入路径）
+
+```
+原始文本令牌 → 分词器（空格分割）→ 页面切片器（1000令牌/页）
+    ↓
+B1编码器: sinusoidal_encode() → 切线向量 v_i ∈ ℝ^512
+    ↓
+实体提取器: HeuristicExtractor → 三元组 (S,P,O) 带 Beacon_ID, Page_ID
+    ↓
+知识图谱: add_triplet() → 稀疏邻接矩阵 A (CSR格式)
+    ↓
+B2压缩器: compute_gaussian_patch() → 高斯补丁 G_j = (μ_j, Σ_inv_j)
+    |   （每10个B1信标）
+    ↓
+B3压缩器: spectral_signature() → 特征值 λ(L_sym)
+    |   （每10个B2信标）
+    ↓
+光谱记忆流形 M（统一：向量 + 图 + 时间 + 压缩）
+```
+
+#### 查询管道（读取路径）
+
+```
+查询 Q → 嵌入 Q → LSH桶 → 概念扩散 → B3排名 → B2扩展 → B1扩展 → 子模块包装 → CollapseResult
+```
+
+### 组件图
+
+| 组件 | 文件 | 职责 |
+|------|------|------|
+| 数学引擎 | `math_engine.py` | 所有向量/矩阵操作，纯NumPy/SciPy |
+| 知识图谱 | `knowledge_graph.py` | CSR邻接矩阵、拉普拉斯、扩散、概念-信标映射 |
+| 内存管理器 | `memory_manager.py` | 虚拟内存树、LRU驱逐、B1→B2→B3信标压缩 |
+| 查询引擎 | `query_engine.py` | 查询管道编排，概念缓存，LSH桶缓存 |
+| 实体提取器 | `entity_extractor.py` | 确定性正则SVO提取 |
+| MCP服务器 | `mcp_server.py` | JSON-RPC 2.0 over stdio，同步协议 |
+| 语义压缩器 | `semantic_compressor.py` | 知识压缩引擎 |
+| 主入口 | `main.py` | E2E管道，合成语料库生成，并发查询模拟 |
+
+---
+
+## 关键技术细节
+
+### 数学参数
+
+| 参数 | 值 | 用途 |
+|------|-----|------|
+| `d_model` | 512 | 嵌入维度（sinusoidal编码） |
+| `page_size` | 1000 | 每个B1页面的令牌数 |
+| `cache_size` | 10 | 工作内存中的最大B1页面数 |
+| `lsh_w` | 10.0 | LSH桶宽度 |
+| `lsh_m` | 8 | LSH哈希函数数量 |
+| `lsh_seed` | 42 | LSH随机种子（永不改变） |
+| `b_seed` | 43 | sinusoidal编码相位种子（永不改变） |
+| `fokker_alpha` | 0.1 | 扩散系数 |
+| `fokker_beta` | 0.5 | 赫布强化系数 |
+| `fokker_gamma` | 0.01 | 指数衰减率 |
+| `spectral_k` | 5 | B3谱签名特征值数量（优化后从10降至5） |
+
+### 公式快速参考
+
+**嵌入：**
+```
+z(x)_j = cos(w_j * MD5(x) + b_j)
+w_j ~ N(0, 4.0), seed=42
+b_j ~ U(0, 2π), seed=43
+```
+
+**LSH哈希：**
+```
+h_i(x) = floor((a_i · x + b_i) / w)
+bucket = (h_1(x), ..., h_m(x))
+```
+
+**图拉普拉斯：**
+```
+L_sym = I - D^(-1/2) * A * D^(-1/2)
+```
+
+**Fokker-Planck扩散：**
+```
+ρ_{t+1} = ρ_t + α·(L·ρ_t) + β·(q ⊙ ρ_t) - γ·ρ_t
+α=0.1, β=0.5, γ=0.01
+```
+
+**子模块包装：**
+```
+贪婪算法: m* = argmax(marginal_gain(m) / |m|)
+保证: f(S_greedy) >= (1 - 1/e) * f(S_optimal) ≈ 0.63 * OPT
+```
+
+**高斯补丁（B2）：**
+```
+μ = mean(vectors)
+Σ = (X-μ)^T * (X-μ) / (n-1)
+Σ_inv = pinv(Σ)
+```
+
+**置信度分数：**
+```
+confidence = min(1.0, total_coverage / max(tokens_used, 1) * 100.0)
+```
+
+**压缩比：**
+```
+compression_ratio = tokens_total / tokens_used
+```
+
+### 内存布局（每组件）
+
+```
+B1嵌入 (float16):     512 × 2 bytes = 1 KB/页
+B2补丁 (float64对角):  512 × 8 bytes = 4 KB/补丁（仅对角线）
+B3签名 (float64):     5 × 8 bytes = 40 bytes/签名
+图邻接 (CSR):         ~8 bytes/边
+LSH哈希向量 (float64): 512 × 8 = 4 KB（固定，单一实例）
+```
+
+### 知识图谱结构
+
+| 属性 | 类型 | 用途 |
+|------|------|------|
+| `node_to_idx` | dict[str, int] | 概念名 → 矩阵索引 |
+| `idx_to_node` | dict[int, str] | 矩阵索引 → 概念名 |
+| `beacon_map` | dict[str, list[str]] | 概念 → [beacon_id, ...] |
+| `beacon_to_concepts` | dict[str, list[str]] | 信标 → [concept, ...]（反向） |
+| `A` | sp.csr_matrix | 加权邻接（仅上三角，~50%节省） |
+| `L_sym` | sp.csr_matrix | 归一化拉普拉斯 |
+| `rho` | np.ndarray | 时间记忆强度向量 |
+
+---
+
+## 训练/构建/运行命令
+
+### 安装
+```bash
+git clone https://github.com/Zierax/The-Context.git
+cd The-Context
+python -m venv .venv
+# Windows:
+.venv\Scripts\activate
+# WSL/Linux:
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+### 运行测试
+```bash
+PYTHONPATH=src python -m pytest tests/ -v --tb=short
+```
+
+### 运行RULER基准（主要基准）
+```bash
+PYTHONPATH=src python benchmarks/ruler_bench.py
+```
+
+### 运行完整基准套件
+```bash
+PYTHONPATH=src python benchmarks/run_benchmarks.py
+```
+
+### 运行E2E管道
+```bash
+PYTHONPATH=src python src/the_context/main.py
+```
+
+### 运行内存分析
+```bash
+PYTHONPATH=src python analyze_memory.py
+```
+
+### 作为MCP服务器使用
+```bash
+echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' | PYTHONPATH=src python src/the_context/mcp_server.py
+```
+
+### 通过MCP查询
+```bash
+echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"collapse_quantum_memory","arguments":{"query":"What is quantum memory?","max_tokens":4096}}}' | PYTHONPATH=src python src/the_context/mcp_server.py
+```
+
+### Windows特定注意事项
+- Windows Python（`python`）可能缺少numpy，使用WSL的python3
+- WSL命令前缀：`wsl -e bash -c "cd /mnt/d/Axioms/The\\ Context && ..."`
+- D盘可能从WSL中卸载，需要手动挂载：`sudo mount -t drvfs D: /mnt/d`
+
+---
+
+## CLI/配置标志参考
+
+### 基准测试命令行参数
+```bash
+python benchmarks/ruler_bench.py --size 10000 --tasks all
+python benchmarks/ruler_bench.py --size 50000 --tasks retrieval
+```
+
+| 参数 | 默认值 | 用途 |
+|------|--------|------|
+| `--size` | 10000 | 语料库大小（令牌数） |
+| `--tasks` | all | 任务类型：all, retrieval, single_needle, multi_needle, multi_hop, adversarial |
+
+### QueryEngine配置
+| 参数 | 默认值 | 用途 |
+|------|--------|------|
+| `d_model` | 512 | 嵌入维度 |
+| `max_tokens` | 4096 | 最大令牌预算 |
+
+### VirtualMemoryTree配置
+| 参数 | 默认值 | 用途 |
+|------|--------|------|
+| `page_size` | 1000 | 每页令牌数 |
+| `cache_size` | 10 | 最大缓存页面数 |
+| `persist_dir` | ".context" | 磁盘持久化目录 |
+
+### CollapseRequest（MCP）
+| 参数 | 默认值 | 范围 | 用途 |
+|------|--------|------|------|
+| `query` | 必需 | - | 查询字符串 |
+| `max_tokens` | 4096 | [1, 128000] | 最大令牌预算 |
+| `temperature` | 0.0 | - | 忽略（强制确定性） |
+| `required_concepts` | [] | - | 必须在结果中的概念 |
+| `session_id` | "default" | - | 会话标识符 |
+
+---
+
+## 硬件和环境
+
+### 运行环境
+- **主要运行环境**：WSL2 / Linux
+- **Python**：3.10+
+- **Windows Python**：缺少numpy，不用于测试/基准
+- **WSL Python**：python3，用于所有测试和基准
+
+### 硬件约束
+- **无GPU要求**：纯CPU NumPy/SciPy
+- **内存**：10K tokens ≈ 95KB RAM，25M tokens投射 ≈ 36.8MB RAM
+- **磁盘**：.context/pages/ 存储驱逐页面
+
+### 已知环境问题
+- D盘可能从WSL中卸载：`sudo mount -t drvfs D: /mnt/d`
+- Windows Python hermes虚拟环境缺少numpy
+- WSL externally-managed环境阻止pip安装（需--break-system-packages或venv）
+
+---
+
+## Git工作流
+
+### 最近提交历史
+```
+1a6caa5 Restructure repo: src/ layout, remove v2 files, fix all imports
+60c0502 Phase 1: Embedding-based extraction and vector search
+e2aebd2 Fix adversarial benchmark and strict concept matching
+bccd002 Add RULER-style benchmark with honest results
+6e8a9d1 Honest rename + documentation cleanup
+120ae1d Fix query pipeline: 7 critical bugs
+fee131a v0.1-beta: Zero-loss memory optimizations
+cbdcdc8 v0.1-beta: Spectral Memory Manifold Co-Processor
+```
+
+### 版本标签
+- `v0.1-beta` — 初始发布
+- `v0.1.1` — 文档清理
+
+### Git命令
+```bash
+git status
+git diff
+git log --oneline -10
+git add <files>
+git commit -m "描述性消息"
+git push origin main
+git tag v0.2-alpha
+git push origin v0.2-alpha
+```
+
+### 提交消息格式
+- 简洁描述性消息
+- 使用英文
+- 示例：`Fix query pipeline: 7 critical bugs`
+
+---
+
+## 已知问题和修复
+
+### 当前关键问题
+
+#### 1. 存储开销问题（严重）
+- **问题**：系统存储原始文本 + 嵌入 = 比原始文本大1.3倍
+- **当前**：1.09 bytes/token vs 原始文本0.52 bytes/token
+- **目标**：< 0.5 bytes/token（比原始文本小）
+- **原因**：
+  - `self.pages` OrderedDict存储所有文本在RAM中
+  - B1嵌入512维 × 2 bytes = 1KB/页
+  - B2存储Sigma_inv_diag（4KB/批）
+- **修复计划**：
+  - 不在RAM存储原始文本（仅磁盘）
+  - 减少B1维度512→128
+  - 不存储Sigma_inv_diag
+
+#### 2. Multi-needle检索准确率（严重）
+- **问题**：60%（目标≥95%）
+- **根因**：通用查询"What are the facts?"仅激活1个概念（`['has']`），信标排名无区别
+- **修复计划**：
+  - 自适应概念激活：当activated_concepts < 3时，激活所有概念
+  - 增加B3信标数量5→15
+
+#### 3. Adversarial检索准确率（严重）
+- **问题**：20% clean（目标≥90%）
+- **根因**：所有查询为正确和干扰页面激活相同概念
+- **修复计划**：
+  - 改进实体提取器（扩展动词列表）
+  - 页面重要性回退（TF-IDF风格）
+
+### 已修复的问题
+
+| 问题 | 修复 | 提交 |
+|------|------|------|
+| 7个查询管道关键bug | 修复evict_page、B3层次、submodular_pack等 | 120ae1d |
+| adversarial基准缺陷 | 分离正确/干扰事实 | e2aebd2 |
+| 严格概念匹配 | 子字符串→精确单词匹配 | e2aebd2 |
+| 量子命名 | quantum_gate.py → query_engine.py | 6e8a9d1 |
+| v2文件创建 | 删除，保持现有代码 | 1a6caa5 |
+
+### RULER基准诚实结果（10K tokens）
+
+| 任务 | 当前 | 目标 | 状态 |
+|------|------|------|------|
+| Single Needle | 100% | 100% | PASS |
+| Multi Needle | 60% | ≥95% | FAIL |
+| Multi-hop | 100% | 100% | PASS |
+| Adversarial | 20% clean | ≥90% | FAIL |
+
+---
+
+## 文件更新规则
+
+### 何时更新此文件
+1. 添加新模块或重大重构时
+2. 修复关键bug时
+3. 更改构建/运行命令时
+4. 添加新依赖时
+5. 性能结果显著变化时
+6. 用户要求时
+
+### 如何更新
+1. 读取此文件确认当前内容
+2. 更新相关部分
+3. 更新日期（底部）
+4. 保持中文
+5. 保持全面——不要跳过任何部分
+
+---
+
+## 最后提醒
+
+1. **用户说阿拉伯语** — 聊天用阿拉伯语，代码用英语
+2. **零妥协** — 生产就绪代码，不是演示
+3. **确定性** — 相同输入→相同输出，始终
+4. **不要创建v2文件** — 改进现有代码
+5. **src/布局** — 所有源代码在`src/the_context/`，测试在`tests/`
+6. **PYTHONPATH=src** — 运行测试/基准时必须设置
+7. **优先级**：存储修复 > 检索准确率 > 规模扩展
+8. **上下文工程** — 写代码前先思考
+9. **不要说谎** — 诚实报告结果，即使很糟糕
+10. **这个项目的目标**：成为比Cognee、MemGPT、GraphRAG更好的LLM上下文记忆系统
+
+---
+
+*最后更新：2026年7月22日*

@@ -71,7 +71,9 @@ class VirtualMemoryTree:
         os.makedirs(self.pages_dir, exist_ok=True)
 
         # B1 level: individual pages
-        self.pages: OrderedDict[str, str] = OrderedDict()  # page_id -> text
+        # NOTE: Raw text is NOT stored in RAM. Pages are written to disk immediately
+        # during ingestion and loaded on demand via get_page(). This reduces memory
+        # overhead from 1.3x to ~0.3x of raw text size.
         self.beacon_b1: dict[str, np.ndarray] = {}         # beacon_id -> embedding
         self.page_to_beacon: dict[str, str] = {}            # page_id -> b1_beacon_id
 
@@ -155,6 +157,9 @@ class VirtualMemoryTree:
     def _flush_buffer(self, tokens: list[str]) -> str:
         """Flush a token buffer into a B1 page with embedding.
 
+        Writes page text to disk immediately. Does NOT store text in RAM.
+        This reduces memory overhead from 1.3x to ~0.3x of raw text.
+
         Args:
             tokens: List of tokens to form a page.
 
@@ -163,7 +168,22 @@ class VirtualMemoryTree:
         """
         with self._lock:
             text = " ".join(tokens)
-            page_id = f"page_{len(self.pages) + len(os.listdir(self.pages_dir)):07d}"
+            # Count existing pages on disk for unique ID generation
+            n_existing = len(os.listdir(self.pages_dir))
+            page_id = f"page_{n_existing:07d}"
+
+            # Write page text to disk immediately (never stored in RAM)
+            page_path = os.path.join(self.pages_dir, f"{page_id}.txt")
+            try:
+                with open(page_path, "w", encoding="utf-8") as f:
+                    f.write(text)
+            except OSError as exc:
+                logger.error(
+                    "flush_buffer_write_failed",
+                    page_id=page_id,
+                    error=str(exc),
+                )
+                raise
 
             # Compute embedding via sinusoidal encoding of page content
             # Use page text segments as pseudo-concepts for embedding
@@ -175,14 +195,15 @@ class VirtualMemoryTree:
             else:
                 page_embedding = np.zeros(512, dtype=np.float16)
 
-            # Allocate B1 beacon
-            beacon_id = self.allocate_b1(page_id, text, page_embedding)
+            # Allocate B1 beacon (text is already on disk)
+            beacon_id = self.allocate_b1(page_id, page_embedding)
 
             logger.debug(
                 "page_flushed",
                 page_id=page_id,
                 beacon_id=beacon_id,
                 n_tokens=len(tokens),
+                disk_path=page_path,
             )
             return page_id
 
@@ -205,12 +226,11 @@ class VirtualMemoryTree:
         )
         return concepts[:50]
 
-    def allocate_b1(self, page_id: str, text: str, embedding: np.ndarray) -> str:
-        """Store a B1 beacon. Evict lowest-score page if cache is full.
+    def allocate_b1(self, page_id: str, embedding: np.ndarray) -> str:
+        """Store a B1 beacon embedding. Page text is already on disk.
 
         Args:
             page_id: Page identifier string.
-            text: Full page text content.
             embedding: Page embedding vector of shape (d_model,).
 
         Returns:
@@ -220,11 +240,7 @@ class VirtualMemoryTree:
             self._b1_counter += 1
             beacon_id = _generate_beacon_id("b1", self._b1_counter)
 
-            # Evict if cache full
-            if len(self.pages) >= self.cache_size:
-                self._evict_lowest_score()
-
-            self.pages[page_id] = text
+            # Store embedding and mappings only (text is on disk)
             self.beacon_b1[beacon_id] = embedding
             self.page_to_beacon[page_id] = beacon_id
             # Update reverse map: b1_id -> [page_id, ...]
@@ -241,16 +257,20 @@ class VirtualMemoryTree:
             return beacon_id
 
     def _evict_lowest_score(self) -> None:
-        """Evict the page with the lowest LRU score.
+        """Track the page with the lowest LRU score.
 
-        Writes evicted page to disk. Removes from working memory.
+        Since pages are always on disk, there's nothing to evict from RAM.
+        This method exists for backward compatibility and LRU tracking.
         """
-        if not self.pages:
+        if not self.lru_scores:
             return
-
-        # Find page with lowest LRU score
+        # Find page with lowest LRU score (for logging/tracking only)
         worst_page = min(self.lru_scores, key=self.lru_scores.get)
-        self.evict_page(worst_page)
+        logger.debug(
+            "lowest_score_page",
+            page_id=worst_page,
+            score=self.lru_scores[worst_page],
+        )
 
     def compress_b2(self, b1_beacons: list[str]) -> str:
         """Group B1 beacons into a B2 Gaussian patch.
@@ -520,32 +540,23 @@ class VirtualMemoryTree:
             self.compress_b3(batch)
 
     def get_page(self, page_id: str) -> str | None:
-        """Retrieve a page text by ID. Update LRU score.
+        """Retrieve a page text by ID from disk. Update LRU score.
 
-        Moves retrieved page to the end of the OrderedDict (most recently used).
+        Pages are always on disk. This method loads on demand and updates
+        the LRU score for tracking access patterns.
 
         Args:
             page_id: Page identifier string.
 
         Returns:
-            Page text string, or None if not in working memory or on disk.
+            Page text string, or None if not found on disk.
         """
         with self._lock:
-            if page_id in self.pages:
-                # Move to end (most recently used)
-                text = self.pages.pop(page_id)
-                self.pages[page_id] = text
-                # Update LRU score (higher = more recently used)
-                self.lru_scores[page_id] = self.lru_scores.get(page_id, 0.0) + 1.0
-                return text
-
-            # Try loading from disk
+            # Always load from disk (no in-memory cache)
             disk_text = self.load_page_from_disk(page_id)
             if disk_text is not None:
-                # Restore to cache if space available
-                if len(self.pages) < self.cache_size:
-                    self.pages[page_id] = disk_text
-                    self.lru_scores[page_id] = 1.0
+                # Update LRU score (higher = more recently used)
+                self.lru_scores[page_id] = self.lru_scores.get(page_id, 0.0) + 1.0
                 return disk_text
 
             return None
@@ -562,42 +573,26 @@ class VirtualMemoryTree:
                 self.lru_scores[page_id] = self.lru_scores.get(page_id, 0.0) + score_delta
 
     def evict_page(self, page_id: str) -> None:
-        """Write a page to disk and remove from working memory.
+        """Remove a page from active memory.
+
+        Pages are always on disk, so this only cleans up metadata.
+        The page text remains on disk for on-demand loading.
 
         Args:
             page_id: Page identifier string to evict.
         """
         with self._lock:
-            if page_id not in self.pages:
-                return
-
-            text = self.pages[page_id]
-            page_path = os.path.join(self.pages_dir, f"{page_id}.txt")
-            try:
-                with open(page_path, "w", encoding="utf-8") as f:
-                    f.write(text)
-            except OSError as exc:
-                logger.error(
-                    "evict_page_write_failed",
-                    page_id=page_id,
-                    error=str(exc),
-                )
-                raise
-
-            # Clean up working memory
-            del self.pages[page_id]
+            # Clean up metadata
             if page_id in self.lru_scores:
                 del self.lru_scores[page_id]
 
             # NOTE: page_to_beacon and b1_to_pages are intentionally PRESERVED.
-            # The query pipeline (collapse → expand_b3_to_pages → b1_to_pages)
-            # needs these mappings to discover page IDs, then calls get_page()
-            # which loads from disk. Only the page text is evicted.
+            # The query pipeline needs these mappings to discover page IDs,
+            # then calls get_page() which loads from disk.
 
             logger.debug(
                 "evict_page",
                 page_id=page_id,
-                text_length=len(text),
             )
 
     def load_page_from_disk(self, page_id: str) -> str | None:
@@ -764,23 +759,22 @@ class VirtualMemoryTree:
             logger.info("memory_tree_saved", path=path)
 
     def get_cache_fill(self) -> float:
-        """Get the fraction of cache currently in use.
+        """Get the fraction of pages that fit in cache.
 
         Returns:
             Float between 0.0 and 1.0.
         """
-        return len(self.pages) / max(self.cache_size, 1)
+        total = self.get_total_pages()
+        return min(1.0, total / max(self.cache_size, 1))
 
     def get_total_pages(self) -> int:
-        """Get the total number of pages managed (memory + disk).
+        """Get the total number of pages managed on disk.
 
         Returns:
             Total page count.
         """
-        memory_pages = len(self.pages)
-        disk_pages = 0
         if os.path.exists(self.pages_dir):
-            disk_pages = len(
+            return len(
                 [f for f in os.listdir(self.pages_dir) if f.endswith(".txt")]
             )
-        return memory_pages + disk_pages
+        return 0

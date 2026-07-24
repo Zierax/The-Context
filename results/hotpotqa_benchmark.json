@@ -1,0 +1,205 @@
+{
+  "benchmark": "hotpotqa",
+  "split": "validation",
+  "n_questions": 500,
+  "corpus_tokens": 453203,
+  "corpus_pages": 454,
+  "ingest_ms": 18798.669999989215,
+  "extract_ms": 0.0,
+  "total_query_ms": 170753.0082000012,
+  "avg_query_ms": 330.11481580039253,
+  "p50_query_ms": 302.70779998681974,
+  "p95_query_ms": 363.317059999099,
+  "p99_query_ms": 419.90746100520477,
+  "f1_mean": 0.0685935508935509,
+  "f1_std": 0.21167955653192153,
+  "f1_median": 0.0,
+  "em_mean": 0.03,
+  "recall_at_1": 0.8493666666666667,
+  "recall_at_5": 0.9881666666666667,
+  "avg_tokens_used": 5723.0,
+  "avg_compression": 87.07769999999998,
+  "memory_bytes": 175104,
+  "compression_ratio_tokens": 79.18976061506203,
+  "by_type": {
+    "comparison": {
+      "count": 96,
+      "f1_mean": 0.05340984247234248,
+      "em_mean": 0.03125
+    },
+    "bridge": {
+      "count": 404,
+      "f1_mean": 0.0722015608154222,
+      "em_mean": 0.0297029702970297
+    }
+  },
+  "by_level": {
+    "hard": {
+      "count": 500,
+      "f1_mean": 0.0685935508935509,
+      "em_mean": 0.03
+    }
+  },
+  "top_answers": [
+    {
+      "id": "5a8b57f25542995d1e6f1371",
+      "question": "Were Scott Derrickson and Ed Wood of the same nationality?",
+      "gold": "yes",
+      "predicted": "directed by Scott Derrickson",
+      "f1": 0.0,
+      "em": 0.0
+    },
+    {
+      "id": "5a8c7595554299585d9e36b6",
+      "question": "What government position was held by the woman who portrayed Corliss Archer in the film Kiss and Tel",
+      "gold": "Chief of Protocol",
+      "predicted": "Shirley Temple",
+      "f1": 0.0,
+      "em": 0.0
+    },
+    {
+      "id": "5a85ea095542994775f606a8",
+      "question": "What science fantasy young adult series, told in first person, has a set of companion books narratin",
+      "gold": "Animorphs",
+      "predicted": "Animorphs",
+      "f1": 1.0,
+      "em": 1.0
+    },
+    {
+      "id": "5adbf0a255429947ff17385a",
+      "question": "Are the Laleli Mosque and Esma Sultan Mansion located in the same neighborhood?",
+      "gold": "no",
+      "predicted": "used today as a cultural center after being redeveloped",
+      "f1": 0.0,
+      "em": 0.0
+    },
+    {
+      "id": "5a8e3ea95542995a26add48d",
+      "question": "The director of the romantic comedy \"Big Stone Gap\" is based in what New York city?",
+      "gold": "Greenwich Village, New York City",
+      "predicted": "Romantic comedy film was premiered at New Jersey",
+      "f1": 0.15384615384615385,
+      "em": 0.0
+    },
+    {
+      "id": "5abd94525542992ac4f382d2",
+      "question": "2014 S/S is the debut album of a South Korean boy group that was formed by who?",
+      "gold": "YG Entertainment",
+      "predicted": "debut album of South Korean group WINNER",
+      "f1": 0.0,
+      "em": 0.0
+    },
+    {
+      "id": "5a85b2d95542997b5ce40028",
+      "question": "Who was known by his stage name Aladin and helped organizations improve their performance as a consu",
+      "gold": "Eenasul Fateh",
+      "predicted": "Eenasul Fateh",
+      "f1": 1.0,
+      "em": 1.0
+    },
+    {
+      "id": "5a87ab905542996e4f3088c1",
+      "question": "The arena where the Lewiston Maineiacs played their home games can seat how many people?",
+      "gold": "3,677 seated",
+      "predicted": "Centennial Ice Arena",
+      "f1": 0.0,
+      "em": 0.0
+    },
+    {
+      "id": "5a7bbb64554299042af8f7cc",
+      "question": "Who is older, Annie Morton or Terry Richardson?",
+      "gold": "Terry Richardson",
+      "predicted": "October",
+      "f1": 0.0,
+      "em": 0.0
+    },
+    {
+      "id": "5a8db19d5542994ba4e3dd00",
+      "question": "Are Local H and For Against both from the United States?",
+      "gold": "yes",
+      "predicted": "final battle of the Northwest Indian War",
+      "f1": 0.0,
+      "em": 0.0
+    },
+    {
+      "id": "5a7166395542994082a3e814",
+      "question": "What is the name of the fight song of the university whose main campus is in Lawrence, Kansas and wh",
+      "gold": "Kansas Song",
+      "predicted": "Two",
+      "f1": 0.0,
+      "em": 0.0
+    },
+    {
+      "id": "5a877e5d5542993e715abf7d",
+      "question": "What screenwriter with credits for \"Evolution\" co-wrote a film starring Nicolas Cage and T\u00e9a Leoni?",
+      "gold": "David Weissman",
+      "predicted": "2000 American romantic comedy-drama film directed by Brett Ratner",
+      "f1": 0.0,
+      "em": 0.0
+    },
+    {
+      "id": "5ab3b0bf5542992ade7c6e39",
+      "question": "What year did Guns N Roses perform a promo for a movie starring Arnold Schwarzenegger as a former Ne",
+      "gold": "1999",
+      "predicted": "chosen by evil forces to conceive the Antichrist with Satan",
+      "f1": 0.0,
+      "em": 0.0
+    },
+    {
+      "id": "5ab56e32554299637185c594",
+      "question": "Are Random House Tower and 888 7th Avenue both used for real estate?",
+      "gold": "no",
+      "predicted": "52-story mixed-use tower in New York City",
+      "f1": 0.0,
+      "em": 0.0
+    },
+    {
+      "id": "5ab6d09255429954757d337d",
+      "question": "The football manager who recruited David Beckham managed Manchester United during what timeframe?",
+      "gold": "from 1986 to 2013",
+      "predicted": "Sir Matt Busby",
+      "f1": 0.0,
+      "em": 0.0
+    },
+    {
+      "id": "5a75e05c55429976ec32bc5f",
+      "question": "Brown State Fishing Lake is in a country that has a population of how many inhabitants ?",
+      "gold": "9,984",
+      "predicted": "Candy Coburn",
+      "f1": 0.0,
+      "em": 0.0
+    },
+    {
+      "id": "5ab3e45655429976abd1bcd4",
+      "question": "The Vermont Catamounts men's soccer team currently competes in a conference that was formerly known ",
+      "gold": "the North Atlantic Conference",
+      "predicted": "The Vermont Catamounts",
+      "f1": 0.0,
+      "em": 0.0
+    },
+    {
+      "id": "5ab29c24554299449642c932",
+      "question": "Are Giuseppe Verdi and Ambroise Thomas both Opera composers ?",
+      "gold": "yes",
+      "predicted": "Opera \u2013 Don Diego in \"L'Africaine\" by Meyerbeer",
+      "f1": 0.0,
+      "em": 0.0
+    },
+    {
+      "id": "5ae0d4c9554299603e418468",
+      "question": "Roger O. Egeberg was Assistant Secretary for Health and Scientific Affairs during the administration",
+      "gold": "1969 until 1974",
+      "predicted": "other roles included Assistant Secretary for Health",
+      "f1": 0.0,
+      "em": 0.0
+    },
+    {
+      "id": "5a8133725542995ce29dcbdb",
+      "question": "Which writer was from England, Henry Roth or Robert Erskine Childers?",
+      "gold": "Robert Erskine Childers DSC",
+      "predicted": "n American novelist",
+      "f1": 0.0,
+      "em": 0.0
+    }
+  ]
+}

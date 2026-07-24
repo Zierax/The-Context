@@ -4,7 +4,6 @@
 
 import os
 import tempfile
-from collections import OrderedDict
 
 import numpy as np
 import pytest
@@ -15,19 +14,25 @@ from the_context.core import VirtualMemoryTree
 class TestVirtualMemoryTree:
     """Tests for the virtual memory tree."""
 
-    def test_init(self) -> None:
+    def _write_page(self, tree: VirtualMemoryTree, page_id: str, text: str) -> None:
+        """Helper: write a page to disk (simulates what _flush_buffer does)."""
+        page_path = os.path.join(tree.pages_dir, f"{page_id}.txt")
+        os.makedirs(tree.pages_dir, exist_ok=True)
+        with open(page_path, "w", encoding="utf-8") as f:
+            f.write(text)
+
+    def test_init(self, tmp_path) -> None:
         """Tree must initialise with empty stores."""
-        tree = VirtualMemoryTree(page_size=100, cache_size=10, persist_dir="/tmp/test_mem_init")
-        assert len(tree.pages) == 0
+        tree = VirtualMemoryTree(page_size=100, cache_size=10, persist_dir=str(tmp_path / "init"))
         assert len(tree.beacon_b1) == 0
         assert len(tree.beacon_b2) == 0
         assert len(tree.beacon_b3) == 0
         assert tree.page_to_beacon == {}
 
-    def test_ingest_stream_yields_pages(self) -> None:
+    def test_ingest_stream_yields_pages(self, tmp_path) -> None:
         """Stream of 5000 tokens must yield 5 page IDs (at 1000 tokens/page)."""
         tree = VirtualMemoryTree(
-            page_size=1000, cache_size=50, persist_dir="/tmp/test_ingest"
+            page_size=1000, cache_size=50, persist_dir=str(tmp_path / "ingest")
         )
         tokens = [f"token_{i}" for i in range(5000)]
         page_ids = list(tree.ingest_stream(iter(tokens)))
@@ -36,114 +41,103 @@ class TestVirtualMemoryTree:
         # All page IDs must be unique
         assert len(set(page_ids)) == 5
 
-    def test_ingest_stream_partial_page(self) -> None:
+    def test_ingest_stream_partial_page(self, tmp_path) -> None:
         """A stream that doesn't fill a complete page must still yield one page."""
         tree = VirtualMemoryTree(
-            page_size=1000, cache_size=10, persist_dir="/tmp/test_partial"
+            page_size=1000, cache_size=10, persist_dir=str(tmp_path / "partial")
         )
         tokens = [f"tok_{i}" for i in range(500)]
         page_ids = list(tree.ingest_stream(iter(tokens)))
         assert len(page_ids) == 1
 
-    def test_allocate_b1(self) -> None:
-        """Allocating a B1 beacon must return a beacon ID and store the page."""
+    def test_allocate_b1(self, tmp_path) -> None:
+        """Allocating a B1 beacon must return a beacon ID and store the embedding."""
         tree = VirtualMemoryTree(
-            page_size=1000, cache_size=10, persist_dir="/tmp/test_alloc"
+            page_size=1000, cache_size=10, persist_dir=str(tmp_path / "alloc")
         )
         embedding = np.random.RandomState(0).randn(512).astype(np.float64)
-        beacon_id = tree.allocate_b1("page_test", "test content", embedding)
+        # Write page text to disk first
+        self._write_page(tree, "page_test", "test content")
+        beacon_id = tree.allocate_b1("page_test", embedding)
         assert beacon_id.startswith("b1_")
-        assert "page_test" in tree.pages
         assert beacon_id in tree.beacon_b1
         assert tree.page_to_beacon["page_test"] == beacon_id
 
     def test_lru_eviction(self, tmp_path) -> None:
-        """With cache_size=2, accessing 3 pages must evict the least recently accessed."""
+        """LRU scores must update correctly when pages are accessed."""
         persist = str(tmp_path / "lru_test")
         tree = VirtualMemoryTree(
-            page_size=100, cache_size=2, persist_dir=persist
+            page_size=100, cache_size=10, persist_dir=persist
         )
 
-        # Allocate 3 pages (third triggers eviction)
-        emb1 = np.random.RandomState(1).randn(512).astype(np.float64)
-        emb2 = np.random.RandomState(2).randn(512).astype(np.float64)
-        emb3 = np.random.RandomState(3).randn(512).astype(np.float64)
-
-        tree.allocate_b1("page_1", "Content of page 1", emb1)
-        tree.allocate_b1("page_2", "Content of page 2", emb2)
+        # Write pages to disk and allocate beacons
+        for i, page_id in enumerate(["page_1", "page_2", "page_3"]):
+            self._write_page(tree, page_id, f"Content of {page_id}")
+            emb = np.random.RandomState(i).randn(512).astype(np.float64)
+            tree.allocate_b1(page_id, emb)
 
         # Access page_1 to make it more recently used
         tree.get_page("page_1")
 
-        # Allocate third page — should evict page_2 (lowest LRU score)
-        tree.allocate_b1("page_3", "Content of page 3", emb3)
+        score_1 = tree.lru_scores.get("page_1", 0.0)
+        score_2 = tree.lru_scores.get("page_2", 0.0)
+        assert score_1 > score_2
 
-        assert "page_1" in tree.pages  # Recently accessed
-        assert "page_3" in tree.pages  # Just added
-        # page_2 may still be in memory if cache size > limit allows, or evicted
-        # The eviction threshold depends on len(tree.pages) >= cache_size
-        # With 2 pages initially, then accessing page_1 and adding page_3,
-        # we may have 2 or 3 pages depending on exact eviction timing
-        # Let's just verify that at most cache_size pages are in memory
-        assert len(tree.pages) <= tree.cache_size + 1  # +1 for race window
-
-    def test_lru_scores_update(self) -> None:
+    def test_lru_scores_update(self, tmp_path) -> None:
         """Getting a page must increase its LRU score."""
         tree = VirtualMemoryTree(
-            page_size=100, cache_size=10, persist_dir="/tmp/test_scores"
+            page_size=100, cache_size=10, persist_dir=str(tmp_path / "scores")
         )
         emb = np.random.RandomState(0).randn(512).astype(np.float64)
-        tree.allocate_b1("page_score", "test content", emb)
+        self._write_page(tree, "page_score", "test content")
+        tree.allocate_b1("page_score", emb)
         score_before = tree.lru_scores.get("page_score", 0.0)
         tree.get_page("page_score")
         score_after = tree.lru_scores.get("page_score", 0.0)
         assert score_after > score_before
 
-    def test_disk_spill_roundtrip(self) -> None:
-        """Evicting a page then loading from disk must return identical text."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            persist_dir = os.path.join(tmpdir, "mem_test")
-            tree = VirtualMemoryTree(
-                page_size=100, cache_size=1, persist_dir=persist_dir
-            )
+    def test_disk_roundtrip(self, tmp_path) -> None:
+        """Writing a page to disk then loading it must return identical text."""
+        tree = VirtualMemoryTree(
+            page_size=100, cache_size=10, persist_dir=str(tmp_path / "disk")
+        )
 
-            original_text = "This is the content of the page to be persisted."
-            emb = np.random.RandomState(0).randn(512).astype(np.float64)
+        original_text = "This is the content of the page to be persisted."
+        emb = np.random.RandomState(0).randn(512).astype(np.float64)
 
-            tree.allocate_b1("disk_page", original_text, emb)
+        # Write page to disk and allocate beacon
+        self._write_page(tree, "disk_page", original_text)
+        tree.allocate_b1("disk_page", emb)
 
-            # Evict the page
-            tree.evict_page("disk_page")
-            assert "disk_page" not in tree.pages
+        # Load from disk
+        loaded = tree.get_page("disk_page")
+        assert loaded == original_text
 
-            # Load from disk
-            loaded = tree.load_page_from_disk("disk_page")
-            assert loaded == original_text
-
-    def test_disk_spill_missing(self) -> None:
+    def test_disk_spill_missing(self, tmp_path) -> None:
         """Loading a non-existent page from disk must return None."""
         tree = VirtualMemoryTree(
-            page_size=100, cache_size=10, persist_dir="/tmp/test_missing"
+            page_size=100, cache_size=10, persist_dir=str(tmp_path / "missing")
         )
         assert tree.load_page_from_disk("nonexistent_page") is None
 
-    def test_get_page_not_found(self) -> None:
+    def test_get_page_not_found(self, tmp_path) -> None:
         """Getting a page that doesn't exist must return None."""
         tree = VirtualMemoryTree(
-            page_size=100, cache_size=10, persist_dir="/tmp/test_get_none"
+            page_size=100, cache_size=10, persist_dir=str(tmp_path / "get_none")
         )
         assert tree.get_page("ghost_page") is None
 
-    def test_beacon_mappings(self) -> None:
+    def test_beacon_mappings(self, tmp_path) -> None:
         """Beacon IDs must be mappable between B1 and pages, and B1 to B2."""
         tree = VirtualMemoryTree(
-            page_size=100, cache_size=10, persist_dir="/tmp/test_beacon_map"
+            page_size=100, cache_size=10, persist_dir=str(tmp_path / "beacon_map")
         )
 
         # Create 10 pages to trigger B2 compression
         for i in range(10):
             emb = np.random.RandomState(i).randn(512).astype(np.float64)
-            tree.allocate_b1(f"bmap_page_{i}", f"content {i}", emb)
+            self._write_page(tree, f"bmap_page_{i}", f"content {i}")
+            tree.allocate_b1(f"bmap_page_{i}", emb)
 
         # Check mappings exist
         b1_ids = tree.get_all_b1_ids()
@@ -154,13 +148,14 @@ class TestVirtualMemoryTree:
             assert b1_id is not None
             assert b1_id in b1_ids
 
-    def test_cache_fill(self) -> None:
+    def test_cache_fill(self, tmp_path) -> None:
         """Cache fill ratio must be between 0 and 1."""
         tree = VirtualMemoryTree(
-            page_size=100, cache_size=10, persist_dir="/tmp/test_fill"
+            page_size=100, cache_size=10, persist_dir=str(tmp_path / "fill")
         )
         assert 0.0 <= tree.get_cache_fill() <= 1.0
 
+        self._write_page(tree, "fill_test", "content")
         emb = np.random.RandomState(0).randn(512).astype(np.float64)
-        tree.allocate_b1("fill_test", "content", emb)
+        tree.allocate_b1("fill_test", emb)
         assert tree.get_cache_fill() > 0.0

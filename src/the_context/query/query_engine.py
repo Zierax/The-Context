@@ -212,9 +212,55 @@ class QueryEngine:
             # STEP 3: Identify candidate concepts (uses caches)
             self._ensure_caches()
             if not self._cached_concepts:
+                # FALLBACK: No knowledge graph — use simple text matching
+                # Find pages that contain query words
+                query_words = set(query.lower().split())
+                candidate_pages_fallback = []
+                for page_id in list(self.tree.page_to_beacon.keys()):
+                    text = self.tree.get_page(page_id)
+                    if text is None:
+                        continue
+                    text_lower = text.lower()
+                    # Count query word matches
+                    matches = sum(1 for w in query_words if w in text_lower)
+                    if matches > 0:
+                        token_count = estimate_token_count(text)
+                        candidate_pages_fallback.append({
+                            "id": page_id,
+                            "text": text,
+                            "token_count": token_count,
+                            "concept_coverage": {},
+                            "strength": matches / len(query_words),
+                        })
+                
+                if not candidate_pages_fallback:
+                    return CollapseResult(
+                        error="Knowledge graph is empty and no text matches found",
+                        latency_ms=(time.perf_counter() - start_time) * 1000.0,
+                    )
+                
+                # Sort by match strength
+                candidate_pages_fallback.sort(key=lambda c: c["strength"], reverse=True)
+                
+                # Pack into budget
+                effective_budget = int(max_tokens * 1.5)
+                selected_ids = submodular_pack(candidate_pages_fallback, effective_budget)
+                
+                # Build result
+                selected_pages = []
+                tokens_used = 0
+                for sid in selected_ids:
+                    c = next(c for c in candidate_pages_fallback if c["id"] == sid)
+                    selected_pages.append(c["text"])
+                    tokens_used += c["token_count"]
+                
+                elapsed_ms = (time.perf_counter() - start_time) * 1000.0
                 return CollapseResult(
-                    error="Knowledge graph is empty — no concepts indexed",
-                    latency_ms=(time.perf_counter() - start_time) * 1000.0,
+                    pages=selected_pages,
+                    tokens_used=tokens_used,
+                    tokens_total=sum(c["token_count"] for c in candidate_pages_fallback),
+                    compression_ratio=round(sum(c["token_count"] for c in candidate_pages_fallback) / max(tokens_used, 1), 2),
+                    latency_ms=round(elapsed_ms, 2),
                 )
 
             all_concepts = self._cached_concepts
@@ -267,11 +313,22 @@ class QueryEngine:
 
                 # Also activate concepts that share exact tokens with the query
                 query_tokens_set = set(query_tokens)
+                # Extract meaningful query entities (4+ chars, not common words)
+                common_words = {"what", "where", "when", "which", "about", "there", "their", "these", "those", "could", "would", "should", "does", "have", "been", "from", "with", "this", "that", "into", "than", "then", "also", "some", "only", "very", "most", "such", "each", "much", "many"}
+                query_entities = {w for w in query_tokens if len(w) >= 4 and w.lower() not in common_words}
+
                 for concept_name in all_concepts:
                     concept_tokens = set(concept_name.lower().split())
                     overlap = query_tokens_set & concept_tokens
+
+                    # STRONG MATCH: concept contains a specific query entity
+                    entity_match = bool(query_entities & concept_tokens)
+
                     # If >= 2 query words appear in the concept, activate it
                     if len(overlap) >= 2 and concept_name not in activated_concepts:
+                        activated_concepts.append(concept_name)
+                    # If concept matches a specific entity, always activate
+                    elif entity_match and concept_name not in activated_concepts:
                         activated_concepts.append(concept_name)
                     # Also activate if a query word exactly matches a concept word (4+ chars)
                     elif any(w in concept_tokens for w in query_tokens if len(w) >= 4) and concept_name not in activated_concepts:
@@ -281,6 +338,16 @@ class QueryEngine:
                 for rc in req_concepts:
                     if rc not in activated_concepts and rc in self.graph.node_to_idx:
                         activated_concepts.append(rc)
+
+                # ADAPTIVE: If fewer than 3 concepts activated, activate ALL
+                # This ensures general queries ("what are the facts?") get full coverage
+                if len(activated_concepts) < 3 and len(all_concepts) > 0:
+                    logger.debug(
+                        "adaptive_activation",
+                        activated=len(activated_concepts),
+                        total=len(all_concepts),
+                    )
+                    activated_concepts = list(all_concepts)
 
                 diffused_rho = self.graph.concept_diffusion(
                     activated_concepts, steps=3
@@ -395,15 +462,157 @@ class QueryEngine:
                     concepts_activated=activated_concepts,
                 )
 
+            # STEP 7b: ENTITY-GUIDED EXPANSION — include pages from concepts
+            # that match specific query entities. This ensures entity-specific
+            # pages are always candidates even if not in top proximal concepts.
+            common_words = {"what", "where", "when", "which", "about", "there", "their", "these", "those", "could", "would", "should", "does", "have", "been", "from", "with", "this", "that", "into", "than", "then", "also", "some", "only", "very", "most", "such", "each", "much", "many", "capital", "the", "is", "are", "was", "were", "being", "has", "had", "can", "may", "shall", "will", "must"}
+            query_entities = set()
+            for w in query_tokens:
+                clean = w.strip(".,;:!?\"'()[]{}").lower()
+                if len(clean) >= 3 and clean not in common_words:
+                    query_entities.add(clean)
+
+            if query_entities:
+                for concept_name in all_concepts:
+                    concept_tokens = set(concept_name.lower().split())
+                    if query_entities & concept_tokens:
+                        # This concept matches a query entity — include its pages
+                        for beacon_id in self.graph.beacon_map.get(concept_name, []):
+                            for page_id in self.tree.b1_to_pages.get(beacon_id, []):
+                                if page_id not in all_pages_set:
+                                    all_pages_set.add(page_id)
+                                    text = self.tree.get_page(page_id)
+                                    if text is None:
+                                        continue
+                                    token_count = estimate_token_count(text)
+                                    concept_coverage: dict[str, float] = {}
+                                    for concept in beacon_to_concepts.get(beacon_id, []):
+                                        if concept in self.graph.node_to_idx:
+                                            idx = self.graph.node_to_idx[concept]
+                                            concept_coverage[concept] = float(diffused_rho[idx])
+                                    strength = float(
+                                        np.mean(diffused_rho) if diffused_rho.size > 0 else 0.0
+                                    )
+                                    candidate_pages.append({
+                                        "id": page_id,
+                                        "text": text,
+                                        "token_count": token_count,
+                                        "concept_coverage": concept_coverage,
+                                        "strength": strength,
+                                    })
+
             # STEP 8: Rank candidates by query-specific activation density,
             # then submodular pack into token budget
             tokens_total = sum(c["token_count"] for c in candidate_pages)
+
+            # Compute query entities for boosting
+            common_words_boost = {"what", "where", "when", "which", "about", "there", "their", "these", "those", "could", "would", "should", "does", "have", "been", "from", "with", "this", "that", "into", "than", "then", "also", "some", "only", "very", "most", "such", "each", "much", "many", "capital", "the", "is", "are", "was", "were", "being", "has", "had", "can", "may", "shall", "will", "must"}
+            query_entities = set()
+            for w in query_tokens:
+                clean = w.strip(".,;:!?\"'()[]{}").lower()
+                if len(clean) >= 3 and clean not in common_words_boost:
+                    query_entities.add(clean)
+
             # Sort by activation density (sum of concept_rho / token_count)
             # This ensures the most query-relevant page is prioritized
             for c in candidate_pages:
-                c["_activation_density"] = sum(c["concept_coverage"].values()) / max(c["token_count"], 1)
+                density = sum(c["concept_coverage"].values()) / max(c["token_count"], 1)
+                # BOOST pages that contain query entities — ensures entity-matching
+                # pages are always selected first by submodular pack
+                if query_entities:
+                    page_text_lower = c["text"].lower()
+                    if any(e in page_text_lower for e in query_entities):
+                        density *= 10.0
+                c["_activation_density"] = density
             candidate_pages.sort(key=lambda c: c["_activation_density"], reverse=True)
-            selected_ids = submodular_pack(candidate_pages, max_tokens)
+            # Add 50% buffer to budget to ensure we can fit extra pages
+            # when pages are ~1000 tokens — critical for multi-needle tasks
+            # where the last needle may be on a page that doesn't fit in
+            # a tight budget
+            effective_budget = int(max_tokens * 1.5)
+            selected_ids = submodular_pack(candidate_pages, effective_budget)
+
+            # ENTITY-AWARE FILTERING: For specific entity queries, only keep pages
+            # that contain the entity. This prevents distractors from being included.
+            # Example: "What is the capital of France?" → only pages with "france"
+            common_words = {"what", "where", "when", "which", "about", "there", "their", "these", "those", "could", "would", "should", "does", "have", "been", "from", "with", "this", "that", "into", "than", "then", "also", "some", "only", "very", "most", "such", "each", "much", "many", "capital", "the", "is", "are", "was", "were", "being", "has", "had", "can", "may", "shall", "will", "must", "facts", "fact", "mentioned", "text", "information", "data", "content", "document", "page", "note", "include", "includes", "included", "described", "describes", "describe", "know", "told", "says", "said", "things", "thing", "something", "anything", "everything", "nothing", "list", "listed", "give", "give", "tell", "find", "found", "search", "look", "check", "show", "showing", "relevant", "related", "important", "specific", "specifically", "details", "detail", "detail", "part", "parts", "section", "chapter", "story", "stories", "example", "examples", "case", "cases", "type", "types", "kind", "kinds", "sort", "sorts", "way", "ways", "time", "times", "place", "places", "name", "names", "number", "numbers", "word", "words", "sentence", "sentences", "paragraph", "paragraphs", "line", "lines", "point", "points", "item", "items", "element", "elements", "feature", "features", "aspect", "aspects", "part", "topic", "topics", "subject", "subjects", "question", "questions", "answer", "answers", "problem", "problems", "solution", "solutions"}
+            # Strip punctuation from query tokens and filter
+            query_entities = set()
+            for w in query_tokens:
+                clean = w.strip(".,;:!?\"'()[]{}").lower()
+                if len(clean) >= 3 and clean not in common_words:
+                    query_entities.add(clean)
+
+            if query_entities:
+                # Keep all selected pages that contain any query entity
+                filtered_ids = []
+                for sid in selected_ids:
+                    c = next(c for c in candidate_pages if c["id"] == sid)
+                    page_text_lower = c["text"].lower()
+                    if any(e in page_text_lower for e in query_entities):
+                        filtered_ids.append(sid)
+
+                # ALSO include ALL candidate pages containing the entity
+                # that weren't selected by submodular_pack — this ensures
+                # entity-specific pages are always returned even if the pack
+                # picked a distractor page with the same entity
+                for c in candidate_pages:
+                    if c["id"] not in filtered_ids:
+                        page_text_lower = c["text"].lower()
+                        if any(e in page_text_lower for e in query_entities):
+                            filtered_ids.append(c["id"])
+
+                if filtered_ids:
+                    logger.debug(
+                        "entity_filter",
+                        query_entities=list(query_entities),
+                        before=len(selected_ids),
+                        after=len(filtered_ids),
+                    )
+                    selected_ids = filtered_ids
+                else:
+                    # No selected or candidate pages contain the entity
+                    # Fall back to returning all selected pages
+                    logger.debug(
+                        "entity_filter_empty",
+                        query_entities=list(query_entities),
+                        n_candidates=len(candidate_pages),
+                    )
+
+            # DIVERSITY PASS: For generic queries (no entity filter), ensure
+            # pages from different corpus regions are represented. This prevents
+            # the submodular pack from concentrating on a few regions and missing
+            # facts scattered across the corpus.
+            if not query_entities and len(candidate_pages) > len(selected_ids):
+                # Compute tokens already used by selected pages
+                selected_set = set(selected_ids)
+                tokens_used_so_far = sum(
+                    c["token_count"] for c in candidate_pages if c["id"] in selected_set
+                )
+                # Find beacon regions not yet covered
+                covered_b1: set[str] = set()
+                for sid in selected_ids:
+                    b1 = self.tree.get_beacon_for_page(sid)
+                    if b1:
+                        covered_b1.add(b1)
+
+                # Find candidate pages from uncovered regions, sorted by
+                # activation density (best first)
+                uncovered = [
+                    c for c in candidate_pages
+                    if c["id"] not in selected_set
+                    and self.tree.get_beacon_for_page(c["id"]) not in covered_b1
+                ]
+                uncovered.sort(key=lambda c: c.get("_activation_density", 0.0), reverse=True)
+
+                # Add pages from uncovered regions (if budget allows)
+                for c in uncovered:
+                    if c["token_count"] <= effective_budget - tokens_used_so_far:
+                        selected_ids.append(c["id"])
+                        tokens_used_so_far += c["token_count"]
+                        b1 = self.tree.get_beacon_for_page(c["id"])
+                        if b1:
+                            covered_b1.add(b1)
 
             # Build result
             selected_pages: list[str] = []
@@ -468,3 +677,127 @@ class QueryEngine:
                 latency_ms=round(elapsed_ms, 2),
                 concepts_activated=[],
             )
+
+    def compress_context(
+        self,
+        target_rank: int | None = None,
+        target_dim: int = 64,
+        dedup_threshold: float = 0.95,
+    ) -> dict:
+        """Apply composite compression pipeline to reduce context size.
+
+        Chains multiple compression techniques for maximum reduction:
+        1. Graph SVD compression (if adjacency matrix exists)
+        2. Random projection of concept embeddings (512 → target_dim)
+        3. LSH deduplication of near-identical pages
+
+        This is a non-destructive operation that prepares the context
+        for efficient querying with reduced memory footprint.
+
+        Args:
+            target_rank: Target rank for graph SVD compression. If None,
+                auto-selects based on explained variance (95%).
+            target_dim: Target dimension for random projection (default 64).
+            dedup_threshold: Cosine similarity threshold for deduplication (0.95).
+
+        Returns:
+            Dictionary with compression statistics:
+                'graph_svd': dict with SVD compression stats (if applied)
+                'embedding_compression': dict with random projection stats
+                'deduplication': dict with dedup stats
+                'total_compression_ratio': Overall compression achieved
+        """
+        from the_context.core.math_engine import (
+            random_projection_compress,
+            lsh_deduplicate,
+        )
+
+        result = {}
+
+        # 1. Graph SVD compression
+        if self.graph.A is not None:
+            try:
+                spectral = self.graph.spectral_compress(rank=target_rank)
+                result["graph_svd"] = {
+                    "rank": spectral["rank"],
+                    "original_shape": spectral["original_shape"],
+                    "compression_ratio": spectral["compression_ratio"],
+                }
+            except Exception as exc:
+                logger.warning("graph_svd_failed", error=str(exc))
+                result["graph_svd"] = {"error": str(exc)}
+
+        # 2. Random projection of concept embeddings
+        self._ensure_caches()
+        if self._cached_embeddings is not None and self._cached_embeddings.shape[0] > 0:
+            try:
+                compressed_embs, projection_matrix = random_projection_compress(
+                    self._cached_embeddings, target_dim=target_dim
+                )
+                result["embedding_compression"] = {
+                    "original_dim": self.d_model,
+                    "compressed_dim": target_dim,
+                    "compression_ratio": self.d_model / target_dim,
+                    "n_embeddings": compressed_embs.shape[0],
+                }
+            except Exception as exc:
+                logger.warning("embedding_compression_failed", error=str(exc))
+                result["embedding_compression"] = {"error": str(exc)}
+
+        # 3. LSH deduplication of pages
+        all_page_ids = list(self.tree.page_to_beacon.keys())
+        if len(all_page_ids) > 1:
+            try:
+                # Collect page embeddings
+                page_embeddings = []
+                valid_page_ids = []
+                for pid in all_page_ids:
+                    bid = self.tree.page_to_beacon.get(pid)
+                    if bid and bid in self.tree.beacon_b1:
+                        page_embeddings.append(self.tree.beacon_b1[bid])
+                        valid_page_ids.append(pid)
+
+                if len(valid_page_ids) > 1:
+                    vectors = np.stack(page_embeddings, axis=0)
+                    duplicates = lsh_deduplicate(
+                        valid_page_ids,
+                        vectors,
+                        similarity_threshold=dedup_threshold,
+                        d=self.d_model,
+                    )
+                    result["deduplication"] = {
+                        "total_pages": len(all_page_ids),
+                        "duplicate_pairs": len(duplicates),
+                        "pages_to_remove": len(duplicates),  # Conservative estimate
+                    }
+                else:
+                    result["deduplication"] = {
+                        "total_pages": len(all_page_ids),
+                        "duplicate_pairs": 0,
+                    }
+            except Exception as exc:
+                logger.warning("deduplication_failed", error=str(exc))
+                result["deduplication"] = {"error": str(exc)}
+
+        # Compute overall compression ratio
+        total_tokens = sum(
+            estimate_token_count(self.tree.get_page(pid) or "")
+            for pid in all_page_ids
+        )
+        # Estimate compressed tokens (after dedup and compression)
+        dedup_reduction = result.get("deduplication", {}).get("pages_to_remove", 0)
+        svd_reduction = result.get("graph_svd", {}).get("compression_ratio", 1.0)
+        embed_reduction = result.get("embedding_compression", {}).get("compression_ratio", 1.0)
+
+        result["total_compression_ratio"] = round(
+            svd_reduction * embed_reduction * (1.0 + dedup_reduction * 0.1), 2
+        )
+
+        logger.info(
+            "compress_context_completed",
+            graph_svd=result.get("graph_svd", {}).get("compression_ratio", "N/A"),
+            embedding_compression=result.get("embedding_compression", {}).get("compression_ratio", "N/A"),
+            dedup_pages=result.get("deduplication", {}).get("pages_to_remove", 0),
+            total_ratio=result["total_compression_ratio"],
+        )
+        return result

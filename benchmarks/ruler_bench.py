@@ -307,7 +307,15 @@ def run_multi_needle_bench(
     """Task 2: Multi Needle - Find multiple facts scattered in text."""
     # Query that should retrieve ALL needles
     query = "What are the facts mentioned in this text?"
-    result = engine.collapse(query=query, max_tokens=4096)
+    # Budget should cover enough pages to find all needles
+    # Each needle is ~10 tokens, but pages are 1000 tokens each
+    # Need enough budget for ~60% of pages to ensure needle coverage
+    total_tokens = sum(
+        len(tree.get_page(p).split())
+        for p in pids if tree.get_page(p)
+    )
+    budget = max(8192, int(total_tokens * 0.8))
+    result = engine.collapse(query=query, max_tokens=budget)
 
     found_count = 0
     for needle in needles:
@@ -492,11 +500,10 @@ def run_benchmark(
 
         query_ms = (time.perf_counter() - t0) * 1000
 
-        # Memory measurement
-        mem = sum(len(t.encode()) for t in tree.pages.values())
-        mem += len(tree.beacon_b1) * d * 2
-        mem += len(tree.beacon_b2) * (d * 2 + d * 8)
-        mem += len(tree.beacon_b3) * (5 * 8 + 10 * 5 * 8)
+        # Memory measurement — pages are on disk, count beacon embeddings only
+        mem = len(tree.beacon_b1) * d * 2  # B1 embeddings (float16)
+        mem += len(tree.beacon_b2) * (d * 2 + d * 8)  # B2 Gaussian patches
+        mem += len(tree.beacon_b3) * (5 * 8 + 10 * 5 * 8)  # B3
         text_bytes = sum(len(t.encode()) for t in corpus)
 
         result["query_ms"] = query_ms

@@ -150,6 +150,162 @@ class SeededLSH:
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# 3.2b LSH Deduplication
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+def lsh_deduplicate(
+    ids: list[str],
+    vectors: np.ndarray,
+    lsh: SeededLSH | None = None,
+    similarity_threshold: float = 0.95,
+    d: int = 512,
+    m: int = 4,
+    w: float = 10.0,
+    seed: int = 42,
+) -> list[tuple[str, str, float]]:
+    """Detect near-duplicate pairs using LSH bucket collision.
+
+    Two vectors are considered near-duplicates if they land in the same
+    LSH bucket (all m hash functions agree). This is a very conservative
+    threshold — only nearly identical content will collide.
+
+    For finer-grained deduplication, use cosine similarity after bucketing.
+
+    Args:
+        ids: List of identifiers for each vector.
+        vectors: Array of shape (n, d), the embeddings to deduplicate.
+        lsh: Pre-initialized SeededLSH instance. If None, creates a new one.
+        similarity_threshold: Cosine similarity threshold for duplicate detection.
+            Default 0.95 (very near-duplicates only).
+        d: Dimensionality of vectors (used only if lsh is None).
+        m: Number of hash functions (used only if lsh is None).
+        w: Hash width (used only if lsh is None).
+        seed: Random seed (used only if lsh is None).
+
+    Returns:
+        List of (id_a, id_b, similarity) tuples for each detected duplicate pair.
+        Each pair appears once (a < b by index).
+    """
+    if len(ids) != vectors.shape[0]:
+        raise ValueError(f"ids length {len(ids)} != vectors shape {vectors.shape[0]}")
+
+    if lsh is None:
+        lsh = SeededLSH(d=d, m=m, w=w, seed=seed)
+
+    n = len(ids)
+    if n < 2:
+        return []
+
+    # Hash all vectors into buckets
+    bucket_hashes = lsh.hash_batch(vectors.astype(np.float64))
+
+    # Group indices by bucket hash
+    buckets: dict[tuple[int, ...], list[int]] = {}
+    for i, h in enumerate(bucket_hashes):
+        buckets.setdefault(h, []).append(i)
+
+    # Within each bucket, check cosine similarity for candidates
+    duplicates: list[tuple[str, str, float]] = []
+    for bucket_indices in buckets.values():
+        if len(bucket_indices) < 2:
+            continue
+        # Check all pairs within this bucket
+        for ii in range(len(bucket_indices)):
+            for jj in range(ii + 1, len(bucket_indices)):
+                i, j = bucket_indices[ii], bucket_indices[jj]
+                # Cosine similarity
+                vi = vectors[i].astype(np.float64)
+                vj = vectors[j].astype(np.float64)
+                norm_i = np.linalg.norm(vi)
+                norm_j = np.linalg.norm(vj)
+                if norm_i < 1e-10 or norm_j < 1e-10:
+                    continue
+                sim = float(np.dot(vi, vj) / (norm_i * norm_j))
+                if sim >= similarity_threshold:
+                    duplicates.append((ids[i], ids[j], sim))
+
+    logger.debug(
+        "lsh_deduplicate",
+        n_vectors=n,
+        n_buckets=len(buckets),
+        n_duplicates=len(duplicates),
+    )
+    return duplicates
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Random Projection (Johnson-Lindenstrauss Lemma)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+def random_projection_compress(
+    vectors: np.ndarray,
+    target_dim: int = 64,
+    seed: int = 42,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Compress high-dimensional embeddings via random projection.
+
+    Uses the Johnson-Lindenstrauss lemma: for n points in R^d, a random
+    projection R^{d→k} where k = O(ε^{-2} log n) preserves pairwise
+    distances within factor (1 ± ε) with high probability.
+
+    For 256K tokens with ε=0.1: k ≈ 64 dimensions suffices.
+    Compression: d/k = 512/64 = 8x
+
+    Args:
+        vectors: Input vectors of shape (n, d).
+        target_dim: Target dimension k (default 64).
+        seed: Random seed for reproducibility.
+
+    Returns:
+        Tuple of (compressed, projection_matrix) where:
+            compressed: ndarray shape (n, k), the compressed vectors.
+            projection_matrix: ndarray shape (d, k), the random projection matrix.
+                Can be reused for new vectors without recomputing.
+    """
+    n, d = vectors.shape
+    if target_dim >= d:
+        return vectors.copy(), np.eye(d, target_dim)
+
+    # Fixed random projection matrix (Gaussian)
+    rng = np.random.RandomState(seed)
+    R = rng.randn(d, target_dim).astype(np.float64) / np.sqrt(target_dim)
+
+    # Project: (n, d) @ (d, k) = (n, k)
+    compressed = (vectors.astype(np.float64) @ R).astype(np.float16)
+
+    logger.debug(
+        "random_projection_compress",
+        input_shape=[n, d],
+        output_shape=[n, target_dim],
+        compression_ratio=d / target_dim,
+    )
+    return compressed, R
+
+
+def random_projection_decompress(
+    compressed: np.ndarray,
+    projection_matrix: np.ndarray,
+) -> np.ndarray:
+    """Approximately reconstruct vectors from random projection.
+
+    This is a lossy reconstruction. The reconstruction error depends on
+    the target dimension and the number of original points.
+
+    Args:
+        compressed: Compressed vectors of shape (n, k).
+        projection_matrix: Projection matrix of shape (d, k).
+
+    Returns:
+        Approximate reconstruction of shape (n, d).
+    """
+    # Pseudo-inverse reconstruction
+    R_pinv = np.linalg.pinv(projection_matrix)
+    return (compressed @ R_pinv).astype(np.float64)
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # 3.3 Graph Laplacian Operations
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -459,6 +615,19 @@ def submodular_pack(
                 best_candidate = c
 
         if best_candidate is None:
+            # Fallback: select remaining candidates by raw strength (fill budget)
+            remaining = [
+                c for c in valid
+                if c["id"] not in selected_ids and c["token_count"] <= remaining_budget
+            ]
+            remaining.sort(key=lambda c: c["strength"], reverse=True)
+            for c in remaining:
+                if c["token_count"] <= remaining_budget:
+                    selected.append(c["id"])
+                    selected_ids.add(c["id"])
+                    remaining_budget -= c["token_count"]
+                    if remaining_budget <= 0:
+                        break
             break
 
         # Update running coverage with selected candidate
@@ -549,6 +718,138 @@ def compute_gaussian_patch(
         mu_norm=np.linalg.norm(mu),
     )
     return mu, Sigma_inv
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Spectral Compression via SVD
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+def svd_compress(
+    matrix: np.ndarray,
+    rank: int | None = None,
+    compression_ratio: float | None = None,
+    explained_variance_threshold: float = 0.95,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, float]:
+    """Compress a matrix via truncated SVD (low-rank approximation).
+
+    Given matrix A of shape (m, n), computes A ≈ U_k @ diag(S_k) @ V_k^T
+    where k << min(m, n). This achieves compression by storing only the top-k
+    singular values and vectors.
+
+    Compression ratio: (m * n) / (m * k + k + n * k) ≈ min(m, n) / (m + n + 1)
+    For square n×n matrix with rank k: n² / (2nk + k) ≈ n / (2k)
+
+    Args:
+        matrix: Input matrix of shape (m, n).
+        rank: Target rank k. Must satisfy 1 <= k <= min(m, n).
+            Mutually exclusive with compression_ratio.
+        compression_ratio: Target compression ratio (must be >= 1.0).
+            If provided, rank is computed as floor(min(m, n) / compression_ratio / 2).
+            Mutually exclusive with rank.
+        explained_variance_threshold: If rank is None and compression_ratio is None,
+            choose k such that cumulative explained variance >= this threshold.
+            Default 0.95 (keep 95% of variance).
+
+    Returns:
+        Tuple of (U_k, S_k, V_kT, actual_compression_ratio) where:
+            U_k: ndarray shape (m, k), left singular vectors.
+            S_k: ndarray shape (k,), singular values.
+            V_kT: ndarray shape (k, n), right singular vectors transposed.
+            actual_compression_ratio: float, actual compression achieved.
+
+    Raises:
+        ValueError: If matrix is empty, rank is out of bounds, or both rank
+            and compression_ratio are provided.
+    """
+    m, n = matrix.shape
+    if m == 0 or n == 0:
+        raise ValueError("Matrix must be non-empty")
+
+    k_max = min(m, n)
+
+    if rank is not None and compression_ratio is not None:
+        raise ValueError("Provide either rank or compression_ratio, not both")
+
+    if compression_ratio is not None:
+        if compression_ratio < 1.0:
+            raise ValueError("compression_ratio must be >= 1.0")
+        k = max(1, int(k_max / compression_ratio / 2))
+    elif rank is not None:
+        if not (1 <= rank <= k_max):
+            raise ValueError(f"rank must be in [1, {k_max}], got {rank}")
+        k = rank
+    else:
+        # Auto-select rank based on explained variance
+        # Use full SVD for small matrices, randomized for large
+        if k_max <= 500:
+            _, S_full, _ = np.linalg.svd(matrix.astype(np.float64), full_matrices=False)
+        else:
+            from scipy.sparse.linalg import svds
+            # svds returns largest singular values
+            S_full = svds(matrix.astype(np.float64), k=min(k_max - 1, 100))[1]
+            S_full = np.sort(S_full)[::-1]
+
+        # Cumulative explained variance
+        total_var = np.sum(S_full ** 2)
+        if total_var > 0:
+            cumvar = np.cumsum(S_full ** 2) / total_var
+            k = int(np.searchsorted(cumvar, explained_variance_threshold) + 1)
+            k = max(1, min(k, k_max))
+        else:
+            k = 1
+
+    # Compute truncated SVD
+    if k_max <= 500:
+        U_k, S_k, V_kT = np.linalg.svd(
+            matrix.astype(np.float64), full_matrices=False
+        )
+        U_k = U_k[:, :k]
+        S_k = S_k[:k]
+        V_kT = V_kT[:k, :]
+    else:
+        from scipy.sparse.linalg import svds
+        # svds returns k smallest, we need k largest
+        k_compute = min(k, k_max - 1)
+        U_k, S_k, V_kT = svds(matrix.astype(np.float64), k=k_compute)
+        # Sort by descending singular value
+        sort_idx = np.argsort(S_k)[::-1]
+        U_k = U_k[:, sort_idx[:k]]
+        S_k = S_k[sort_idx[:k]]
+        V_kT = V_kT[sort_idx[:k], :]
+
+    # Compute actual compression ratio
+    original_size = m * n
+    compressed_size = m * k + k + k * n  # U_k + S_k + V_kT
+    actual_ratio = original_size / max(compressed_size, 1)
+
+    logger.debug(
+        "svd_compress",
+        input_shape=[m, n],
+        rank=k,
+        explained_variance=float(np.sum(S_k ** 2) / max(np.sum(np.linalg.svd(matrix.astype(np.float64), full_matrices=False)[1] ** 2), 1e-10)),
+        compression_ratio=actual_ratio,
+    )
+
+    return U_k, S_k, V_kT, actual_ratio
+
+
+def svd_decompress(
+    U_k: np.ndarray,
+    S_k: np.ndarray,
+    V_kT: np.ndarray,
+) -> np.ndarray:
+    """Reconstruct matrix from truncated SVD components.
+
+    Args:
+        U_k: Left singular vectors, shape (m, k).
+        S_k: Singular values, shape (k,).
+        V_kT: Right singular vectors transposed, shape (k, n).
+
+    Returns:
+        Reconstructed matrix of shape (m, n).
+    """
+    return U_k @ np.diag(S_k) @ V_kT
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

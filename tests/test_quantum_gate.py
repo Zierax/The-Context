@@ -14,11 +14,11 @@ from the_context.query import QueryEngine, CollapseRequest, CollapseResult
 
 
 @pytest.fixture
-def setup_small_graph():
+def setup_small_graph(tmp_path):
     """Set up a minimal QueryEngine with a small graph for testing."""
     d_model = 64
     lsh = SeededLSH(d=d_model, w=10.0, m=4, seed=42)
-    tree = VirtualMemoryTree(page_size=100, cache_size=50, persist_dir="/tmp/test_qg")
+    tree = VirtualMemoryTree(page_size=100, cache_size=50, persist_dir=str(tmp_path / "qg"))
     graph = DeterministicKnowledgeGraph(d_model=d_model)
 
     # Ingest some test pages
@@ -121,11 +121,11 @@ class TestQueryEngine:
         assert result.tokens_used >= 0
         assert result.tokens_total >= 0
 
-    def test_collapse_determinism(self) -> None:
+    def test_collapse_determinism(self, tmp_path) -> None:
         """Same query × 100 must produce identical page order."""
         d_model = 32
         lsh = SeededLSH(d=d_model, w=10.0, m=4, seed=42)
-        tree = VirtualMemoryTree(page_size=50, cache_size=20, persist_dir="/tmp/test_det")
+        tree = VirtualMemoryTree(page_size=50, cache_size=20, persist_dir=str(tmp_path / "det"))
         graph = DeterministicKnowledgeGraph(d_model=d_model)
 
         # Simple stream
@@ -153,11 +153,11 @@ class TestQueryEngine:
                 f"Trial {i} page order differs from trial 0"
             )
 
-    def test_empty_knowledge_graph(self) -> None:
+    def test_empty_knowledge_graph(self, tmp_path) -> None:
         """Querying with an empty graph must return an appropriate error."""
         d_model = 64
         lsh = SeededLSH(d=d_model, w=10.0, m=4, seed=42)
-        tree = VirtualMemoryTree(page_size=100, cache_size=10, persist_dir="/tmp/test_empty")
+        tree = VirtualMemoryTree(page_size=100, cache_size=10, persist_dir=str(tmp_path / "empty"))
         graph = DeterministicKnowledgeGraph(d_model=d_model)
         gate = QueryEngine(tree=tree, graph=graph, lsh=lsh, d_model=d_model)
 

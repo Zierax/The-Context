@@ -1,4 +1,4 @@
-# The Context — Hierarchical Beacon Memory System
+# The Great Context of LLMs — Hierarchical Beacon Memory System
 
 **v0.2-alpha** | Python 3.10+ | Pure NumPy/SciPy | Deterministic | Thread-Safe
 
@@ -6,7 +6,7 @@
 
 ## Overview
 
-The Context is a hierarchical beacon memory system that stores text in a multi-level compressed structure (B1→B2→B3) with a knowledge graph for query routing. It retrieves relevant pages from a large corpus using spectral signatures and Fokker-Planck diffusion.
+The Great Context of LLMs is a hierarchical beacon memory system that stores text in a multi-level compressed structure (B1→B2→B3) with a knowledge graph for query routing. It retrieves relevant pages from a large corpus using spectral signatures and Fokker-Planck diffusion.
 
 ### What It Actually Does
 
